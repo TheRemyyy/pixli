@@ -7,7 +7,7 @@
 [![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-*ECS, wgpu rendering, physics, and audio — production-ready error handling and surface recovery*
+*ECS, wgpu rendering, physics, and audio, production-ready error handling and surface recovery*
 
 [Overview](#overview) • [Requirements](#requirements) • [Installation](#installation) • [Usage](#usage) • [Project Structure](#project-structure) • [Documentation](#documentation) • [Contributing](#contributing)
 
