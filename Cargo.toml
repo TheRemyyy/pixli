@@ -1,0 +1,38 @@
+[package]
+name = "pixli"
+version = "0.1.0"
+edition = "2021"
+description = "A simple yet powerful 3D game engine in Rust"
+license = "MIT"
+
+[dependencies]
+wgpu = "23"
+thiserror = "2"
+winit = "0.30"
+pollster = "0.4"
+bytemuck = { version = "1.14", features = ["derive"] }
+cgmath = "0.18"
+log = "0.4"
+env_logger = "0.11"
+image = "0.25"
+rodio = "0.19"
+rand = "0.8"
+parking_lot = "0.12"
+wide = "0.7"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[example]]
+name = "shooter"
+path = "examples/shooter/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+debug = false
+incremental = false
+overflow-checks = false
+rpath = false
