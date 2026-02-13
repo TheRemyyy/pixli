@@ -83,7 +83,7 @@ fn update(state: &mut GameState) {
 ![Shooter example](images/shooter_example.png)
 
 ```bash
-cargo run --example shooter
+cargo run --release --example shooter
 ```
 
 Controls: WASD move, mouse aim, LMB fire, Space jump, ESC release mouse or quit.

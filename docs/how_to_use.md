@@ -51,7 +51,7 @@ Inside `update(state: &mut GameState)` you have:
 | `state.time`     | `&Time`        | Delta time, elapsed, FPS, fixed timestep. Read-only. |
 | `state.renderer` | `&mut Renderer` | Camera, lights, fog, graphics settings. |
 | `state.physics`  | `&mut Physics`  | Gravity, collision events; `update` is called by the engine. |
-| `state.audio`    | `&Audio`        | Play sounds (API present; playback may be placeholder). |
+| `state.audio`    | `&Audio`        | Play sounds (real playback via rodio). |
 | `state.window`   | `&Window`       | Window handle (e.g. for cursor grab). |
 
 You never create `GameState` yourself; the engine passes it into your systems.

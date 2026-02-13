@@ -11,12 +11,14 @@ mod components;
 mod config;
 mod map;
 mod meshes;
+mod sound;
 mod systems;
 
 use components::*;
 use config::*;
 use map::*;
 use meshes::*;
+use sound::*;
 use systems::*;
 
 fn main() -> pixli::Result<()> {
@@ -94,6 +96,10 @@ fn setup(world: &mut World, renderer: &mut Renderer) {
     // Tracer beam mesh for shot visualization.
     let tracer_mesh_id = renderer.upload_unlit_mesh(&create_tracer_mesh());
     world.spawn().with(TracerMeshId(tracer_mesh_id)).build();
+
+    // Shoot SFX (minimal WAV, no external assets).
+    let shoot_source = AudioSource::from_bytes(shoot_wav_bytes());
+    world.spawn().with(ShootSound(shoot_source)).build();
 
     // Crosshair
     let crosshair_mesh_id = renderer.upload_unlit_mesh(&create_crosshair_mesh());

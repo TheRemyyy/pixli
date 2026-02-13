@@ -6,7 +6,7 @@ use pixli::prelude::*;
 
 use crate::components::{
     Crosshair, Health, MuzzleFlash, PlayerController, PlayerEntity, RaycastIgnore, RecoilAmount,
-    Tracer, TracerMeshId, ViewModel, WeaponState,
+    ShootSound, Tracer, TracerMeshId, ViewModel, WeaponState,
 };
 use crate::config::{ARENA_HALF, CAMERA_HEIGHT};
 
@@ -54,7 +54,7 @@ fn raycast_exclude_player(
         if let Some((hit_point, distance, normal)) =
             collider.raycast(origin, direction, transform.position)
         {
-            let closer = closest.as_ref().map_or(true, |c| distance < c.2);
+            let closer = closest.as_ref().is_none_or(|c| distance < c.2);
             if distance <= max_distance && distance > 0.001 && closer
             {
                 closest = Some((entity, hit_point, distance, normal));
@@ -176,6 +176,13 @@ pub fn shooting_system(state: &mut GameState) {
 
     if let Some(ws) = state.world.get_mut::<WeaponState>(player_entity) {
         ws.last_shot_time = state.time.elapsed();
+    }
+
+    // Play shoot SFX (if singleton with ShootSound exists).
+    if let Some(e) = state.world.query::<(&ShootSound,)>().iter().next() {
+        if let Some(sound) = state.world.get::<ShootSound>(e) {
+            state.audio.play_volume(&sound.0, 0.35);
+        }
     }
 
     // Tracer: short lived ray from muzzle to hit (or max distance).

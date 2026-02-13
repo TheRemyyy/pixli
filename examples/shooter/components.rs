@@ -1,5 +1,6 @@
 //! Game components: player, enemies, health, weapon.
 
+use pixli::audio::AudioSource;
 use pixli::ecs::Entity;
 
 /// Player: FPS camera state (gravity, jump).
@@ -74,3 +75,6 @@ pub struct TracerMeshId(pub u64);
 
 /// Entity ignored by raycast (weapons, crosshair, tracer).
 pub struct RaycastIgnore;
+
+/// Singleton: shoot SFX source (played on fire).
+pub struct ShootSound(pub AudioSource);
