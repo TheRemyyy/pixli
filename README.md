@@ -9,7 +9,7 @@
 
 *ECS, wgpu rendering, physics, and audio, production-ready error handling and surface recovery*
 
-[Overview](#overview) • [Requirements](#requirements) • [Installation](#installation) • [Usage](#usage) • [Project Structure](#project-structure) • [Documentation](#documentation) • [Contributing](#contributing)
+[Overview](#overview) • [Quick start](#usage) • [**How to use / API**](docs/how_to_use.md) • [Requirements](#requirements) • [Installation](#installation) • [Project Structure](#project-structure) • [Documentation](#documentation) • [Contributing](#contributing)
 
 </div>
 
@@ -127,11 +127,12 @@ pixli/
 
 ## <a id="documentation"></a>Documentation
 
-- [**Overview**](docs/overview.md) — Philosophy and features
-- [**System architecture**](docs/architecture/system_overview.md) — App loop, render pipeline, ECS
-- [**Changelog**](CHANGELOG.md) — Version history
+- [**How to use / API guide**](docs/how_to_use.md) — **Start here:** how to make a game, what’s in `GameState`, ECS, physics, renderer, input, time, and a quick reference of what you can use
+- [Overview](docs/overview.md) — Philosophy and features
+- [System architecture](docs/architecture/system_overview.md) — App loop, render pipeline, ECS
+- [Changelog](CHANGELOG.md) — Version history
 
-Generate API docs:
+Full API reference (generated from code):
 
 ```bash
 cargo doc --open

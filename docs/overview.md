@@ -2,6 +2,8 @@
 
 **Pixli** is a 3D game engine written in **Rust**, built for clarity and production use. It uses **wgpu** for portable graphics (Vulkan, DirectX 12, Metal) and provides an ECS, physics, and audio in a single crate.
 
+**→ New to Pixli?** See [**How to use / API guide**](how_to_use.md) to learn how to create a game step by step and what you can use (App, GameState, ECS, physics, renderer, input, time, audio).
+
 ## Core philosophy
 
 1. **No panics on user paths** — Window and GPU initialization return `Result`; you handle errors in `main`.
