@@ -1002,6 +1002,7 @@ impl Renderer {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_depth_prepass_ssao(
     encoder: &mut wgpu::CommandEncoder,
     queue: &wgpu::Queue,
@@ -1080,6 +1081,7 @@ fn run_depth_prepass_ssao(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_shadow_pass(
     encoder: &mut wgpu::CommandEncoder,
     queue: &wgpu::Queue,
@@ -1186,6 +1188,7 @@ struct BlurParams {
     _pad: u32,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_bloom(
     encoder: &mut wgpu::CommandEncoder,
     queue: &wgpu::Queue,
@@ -1328,6 +1331,7 @@ struct SSAOParams {
     max_dist: f32,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_ssao_pass(
     encoder: &mut wgpu::CommandEncoder,
     queue: &wgpu::Queue,
@@ -1562,6 +1566,7 @@ fn run_post_pass(
     post_pass.draw(0..3, 0..1);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_main_pass(
     encoder: &mut wgpu::CommandEncoder,
     queue: &wgpu::Queue,

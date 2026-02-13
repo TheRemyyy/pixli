@@ -1,7 +1,7 @@
 //! Entity: unique identifier for game objects.
 
 /// Entity identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Entity {
     pub(crate) id: u32,
     pub(crate) generation: u32,
@@ -20,14 +20,5 @@ impl Entity {
     /// Get the entity generation (for validity checking).
     pub fn generation(&self) -> u32 {
         self.generation
-    }
-}
-
-impl Default for Entity {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            generation: 0,
-        }
     }
 }

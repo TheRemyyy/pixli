@@ -78,7 +78,7 @@ impl Texture {
 
         for y in 0..size {
             for x in 0..size {
-                let is_color1 = ((x / tile_size) + (y / tile_size)) % 2 == 0;
+                let is_color1 = ((x / tile_size) + (y / tile_size)).is_multiple_of(2);
                 let color = if is_color1 { color1 } else { color2 };
 
                 data.push((color.r * 255.0) as u8);
