@@ -45,6 +45,8 @@ pub struct App {
     config: WindowConfig,
     startup_systems: Vec<StartupSystem>,
     systems: Vec<System>,
+    /// If set, exit after this many rendered frames (for integration tests).
+    max_frames: Option<u32>,
 }
 
 impl App {
@@ -53,7 +55,14 @@ impl App {
             config: WindowConfig::default(),
             startup_systems: Vec::new(),
             systems: Vec::new(),
+            max_frames: None,
         }
+    }
+
+    /// Exit after N rendered frames. Used for integration tests (e.g. run a few frames then exit).
+    pub fn with_max_frames(mut self, n: u32) -> Self {
+        self.max_frames = Some(n);
+        self
     }
 
     /// Set window title
@@ -111,6 +120,7 @@ impl App {
             self.config,
             self.startup_systems,
             self.systems,
+            self.max_frames,
             init_error.clone(),
         );
         let _ = event_loop.run_app(&mut app_state);
@@ -154,6 +164,9 @@ struct AppState {
     last_frame: Instant,
     last_title_update: Instant,
     title_frame_count: u32,
+    /// Rendered frame count; when max_frames is set, exit after reaching it.
+    render_frame_count: u32,
+    max_frames: Option<u32>,
     initialized: bool,
 }
 
@@ -162,6 +175,7 @@ impl AppState {
         config: WindowConfig,
         startup_systems: Vec<StartupSystem>,
         systems: Vec<System>,
+        max_frames: Option<u32>,
         init_error: Rc<RefCell<Option<Error>>>,
     ) -> Self {
         Self {
@@ -184,6 +198,8 @@ impl AppState {
             last_frame: Instant::now(),
             last_title_update: Instant::now(),
             title_frame_count: 0,
+            render_frame_count: 0,
+            max_frames,
             initialized: false,
         }
     }
@@ -532,6 +548,14 @@ impl ApplicationHandler for AppState {
                         self.title_frame_count = 0;
                         self.last_title_update = Instant::now();
                     }
+                }
+
+                self.render_frame_count += 1;
+                if self
+                    .max_frames
+                    .is_some_and(|m| self.render_frame_count >= m)
+                {
+                    event_loop.exit();
                 }
 
                 // Clear input state for next frame

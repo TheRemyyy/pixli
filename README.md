@@ -23,7 +23,7 @@ Pixli is a 3D game engine built in Rust with **wgpu** for cross-platform graphic
 
 - **Rendering** — Lit and unlit pipelines, directional shadows, SSAO, bloom, MSAA, sky gradient, fog
 - **ECS** — Entity/component world, queries, spawn/despawn
-- **Physics** — Box and sphere colliders, rigid bodies, collision events, raycasting
+- **Physics** — Box, sphere, and capsule colliders, rigid bodies, collision events, raycasting
 - **Audio** — Sound loading and playback (rodio)
 - **Input** — Keyboard, mouse, cursor capture
 - **Production-ready** — `Result`-based API, no unwraps on user paths, GPU/surface loss handling (Lost, Outdated, Timeout, OutOfMemory)
@@ -139,6 +139,8 @@ Full API reference (generated from code):
 ```bash
 cargo doc --open
 ```
+
+**Tests:** `cargo test` runs unit tests. Integration test that opens a window and runs 2 frames is ignored by default; run `cargo test -- --ignored` to execute it (e.g. locally with a display).
 
 ## <a id="contributing"></a>Contributing
 

@@ -454,3 +454,62 @@ impl<A: Component, B: Component, C: Component, D: Component> QueryTuple
         }
     }
 }
+
+// Implement for five components.
+impl<A: Component, B: Component, C: Component, D: Component, E: Component> QueryTuple
+    for (&A, &B, &C, &D, &E)
+{
+    fn count(world: &World) -> usize {
+        let storage_a = world.get_storage::<A>();
+        let storage_b = world.get_storage::<B>();
+        let storage_c = world.get_storage::<C>();
+        let storage_d = world.get_storage::<D>();
+        let storage_e = world.get_storage::<E>();
+
+        match (storage_a, storage_b, storage_c, storage_d, storage_e) {
+            (Some(a), Some(b), Some(c), Some(d), Some(e)) => a
+                .entity_ids()
+                .filter(|id| {
+                    b.contains(*id) && c.contains(*id) && d.contains(*id) && e.contains(*id)
+                })
+                .filter(|id| {
+                    world
+                        .entities
+                        .get(*id as usize)
+                        .map(|s| s.alive)
+                        .unwrap_or(false)
+                })
+                .count(),
+            _ => 0,
+        }
+    }
+
+    fn iter(world: &World) -> Box<dyn Iterator<Item = Entity> + '_> {
+        let storage_a = world.get_storage::<A>();
+        let storage_b = world.get_storage::<B>();
+        let storage_c = world.get_storage::<C>();
+        let storage_d = world.get_storage::<D>();
+        let storage_e = world.get_storage::<E>();
+
+        match (storage_a, storage_b, storage_c, storage_d, storage_e) {
+            (Some(a), Some(b), Some(c), Some(d), Some(e)) => {
+                Box::new(a.entity_ids().filter_map(move |id| {
+                    if !b.contains(id)
+                        || !c.contains(id)
+                        || !d.contains(id)
+                        || !e.contains(id)
+                    {
+                        return None;
+                    }
+                    let slot = world.entities.get(id as usize)?;
+                    if slot.alive {
+                        Some(Entity::new(id, slot.generation))
+                    } else {
+                        None
+                    }
+                }))
+            }
+            _ => Box::new(std::iter::empty()),
+        }
+    }
+}

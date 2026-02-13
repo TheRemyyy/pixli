@@ -145,6 +145,35 @@ mod tests {
     }
 
     #[test]
+    fn test_query_five_components() {
+        let mut world = World::new();
+        world
+            .spawn()
+            .with(Transform::new())
+            .with(Mesh::cube(1.0))
+            .with(Material::color(Color::RED))
+            .with(RigidBody::new())
+            .with(Collider::sphere(1.0))
+            .build();
+        world
+            .spawn()
+            .with(Transform::new())
+            .with(Mesh::cube(1.0))
+            .build();
+
+        let query = world.query::<(
+            &Transform,
+            &Mesh,
+            &Material,
+            &RigidBody,
+            &Collider,
+        )>();
+        assert_eq!(query.count(), 1);
+        let entities: Vec<_> = query.iter().collect();
+        assert_eq!(entities.len(), 1);
+    }
+
+    #[test]
     fn test_physics_aabb_collision() {
         let a = Collider::box_collider(Vec3::splat(1.0));
         let b = Collider::box_collider(Vec3::splat(1.0));
@@ -167,6 +196,40 @@ mod tests {
     }
 
     #[test]
+    fn test_physics_capsule_sphere_collision() {
+        let cap = Collider::capsule(0.5, 2.0);
+        let sphere = Collider::sphere(0.5);
+        let pos_cap = Vec3::ZERO;
+        let pos_sphere_overlap = Vec3::new(0.8, 0.0, 0.0);
+        assert!(cap.intersects(&sphere, pos_cap, pos_sphere_overlap));
+        let pos_sphere_far = Vec3::new(5.0, 0.0, 0.0);
+        assert!(!cap.intersects(&sphere, pos_cap, pos_sphere_far));
+    }
+
+    #[test]
+    fn test_physics_capsule_capsule_collision() {
+        let a = Collider::capsule(0.3, 1.0);
+        let b = Collider::capsule(0.3, 1.0);
+        let pos_a = Vec3::ZERO;
+        let pos_b = Vec3::new(0.5, 0.0, 0.0);
+        assert!(a.intersects(&b, pos_a, pos_b));
+        if let Some((_point, _normal, penetration)) = a.collision_info(&b, pos_a, pos_b) {
+            assert!(penetration > 0.0);
+        }
+    }
+
+    #[test]
+    fn test_audio_new() {
+        let _audio = crate::audio::Audio::new();
+    }
+
+    #[test]
+    fn test_audio_source_from_bytes() {
+        let empty: Vec<u8> = vec![];
+        let _source = crate::audio::AudioSource::from_bytes(empty);
+    }
+
+    #[test]
     fn test_mesh_vertex_count() {
         let cube = Mesh::cube(1.0);
         assert_eq!(cube.vertices.len(), 36); // 6 faces * 2 triangles * 3 vertices
@@ -178,5 +241,19 @@ mod tests {
         time.update(0.016);
         assert!((time.delta() - 0.016).abs() < 0.0001);
         assert_eq!(time.frame_count(), 1);
+    }
+
+    /// Integration test: run the app for 2 frames then exit. Opens a window; run with
+    /// `cargo test -- --ignored` to execute (e.g. locally with display).
+    #[test]
+    #[ignore = "opens a window; run with cargo test -- --ignored"]
+    fn test_app_run_few_frames() {
+        let result = App::new()
+            .with_title("Pixli integration test")
+            .with_size(64, 64)
+            .with_max_frames(2)
+            .add_system(|_| {})
+            .run();
+        assert!(result.is_ok(), "App::run() should succeed: {:?}", result);
     }
 }
