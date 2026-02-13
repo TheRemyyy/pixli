@@ -253,7 +253,7 @@ impl ApplicationHandler for AppState {
             };
 
             let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-                backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12,
+                backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12 | wgpu::Backends::METAL,
                 ..Default::default()
             });
 
