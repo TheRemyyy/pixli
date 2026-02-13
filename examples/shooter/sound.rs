@@ -22,7 +22,7 @@ pub fn shoot_wav_bytes() -> Vec<u8> {
     out.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes()); // byte rate
     out.extend_from_slice(&2u16.to_le_bytes()); // block align
     out.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
-    // data
+                                                 // data
     out.extend_from_slice(b"data");
     out.extend_from_slice(&DATA_SIZE.to_le_bytes());
 

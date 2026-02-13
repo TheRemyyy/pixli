@@ -109,18 +109,15 @@ impl Physics {
                 let pos_b = world
                     .get::<crate::math::Transform>(entity_b)
                     .map(|t| t.position);
-                let collision_result =
-                    match (
-                        pos_a,
-                        pos_b,
-                        world.get::<Collider>(entity_a),
-                        world.get::<Collider>(entity_b),
-                    ) {
-                        (Some(pa), Some(pb), Some(ca), Some(cb)) => {
-                            ca.collision_info(cb, pa, pb)
-                        }
-                        _ => None,
-                    };
+                let collision_result = match (
+                    pos_a,
+                    pos_b,
+                    world.get::<Collider>(entity_a),
+                    world.get::<Collider>(entity_b),
+                ) {
+                    (Some(pa), Some(pb), Some(ca), Some(cb)) => ca.collision_info(cb, pa, pb),
+                    _ => None,
+                };
 
                 if let Some((point, normal, penetration)) = collision_result {
                     // Normal points from B toward A (direction to push A out of collision).

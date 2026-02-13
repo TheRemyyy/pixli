@@ -407,9 +407,7 @@ impl<A: Component, B: Component, C: Component> QueryTuple for (&A, &B, &C) {
 }
 
 // Implement for four components.
-impl<A: Component, B: Component, C: Component, D: Component> QueryTuple
-    for (&A, &B, &C, &D)
-{
+impl<A: Component, B: Component, C: Component, D: Component> QueryTuple for (&A, &B, &C, &D) {
     fn count(world: &World) -> usize {
         let storage_a = world.get_storage::<A>();
         let storage_b = world.get_storage::<B>();
@@ -439,17 +437,19 @@ impl<A: Component, B: Component, C: Component, D: Component> QueryTuple
         let storage_d = world.get_storage::<D>();
 
         match (storage_a, storage_b, storage_c, storage_d) {
-            (Some(a), Some(b), Some(c), Some(d)) => Box::new(a.entity_ids().filter_map(move |id| {
-                if !b.contains(id) || !c.contains(id) || !d.contains(id) {
-                    return None;
-                }
-                let slot = world.entities.get(id as usize)?;
-                if slot.alive {
-                    Some(Entity::new(id, slot.generation))
-                } else {
-                    None
-                }
-            })),
+            (Some(a), Some(b), Some(c), Some(d)) => {
+                Box::new(a.entity_ids().filter_map(move |id| {
+                    if !b.contains(id) || !c.contains(id) || !d.contains(id) {
+                        return None;
+                    }
+                    let slot = world.entities.get(id as usize)?;
+                    if slot.alive {
+                        Some(Entity::new(id, slot.generation))
+                    } else {
+                        None
+                    }
+                }))
+            }
             _ => Box::new(std::iter::empty()),
         }
     }
@@ -494,11 +494,7 @@ impl<A: Component, B: Component, C: Component, D: Component, E: Component> Query
         match (storage_a, storage_b, storage_c, storage_d, storage_e) {
             (Some(a), Some(b), Some(c), Some(d), Some(e)) => {
                 Box::new(a.entity_ids().filter_map(move |id| {
-                    if !b.contains(id)
-                        || !c.contains(id)
-                        || !d.contains(id)
-                        || !e.contains(id)
-                    {
+                    if !b.contains(id) || !c.contains(id) || !d.contains(id) || !e.contains(id) {
                         return None;
                     }
                     let slot = world.entities.get(id as usize)?;

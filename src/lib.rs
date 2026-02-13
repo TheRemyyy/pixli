@@ -161,13 +161,7 @@ mod tests {
             .with(Mesh::cube(1.0))
             .build();
 
-        let query = world.query::<(
-            &Transform,
-            &Mesh,
-            &Material,
-            &RigidBody,
-            &Collider,
-        )>();
+        let query = world.query::<(&Transform, &Mesh, &Material, &RigidBody, &Collider)>();
         assert_eq!(query.count(), 1);
         let entities: Vec<_> = query.iter().collect();
         assert_eq!(entities.len(), 1);
