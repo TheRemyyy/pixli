@@ -80,6 +80,8 @@ fn update(state: &mut GameState) {
 
 ### Shooter example
 
+![Shooter example](images/shooter_example.png)
+
 ```bash
 cargo run --example shooter
 ```
