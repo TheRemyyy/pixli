@@ -85,15 +85,37 @@ impl Default for Material {
 
 /// Common materials.
 impl Material {
-    pub fn red() -> Self { Self::color(Color::RED) }
-    pub fn green() -> Self { Self::color(Color::GREEN) }
-    pub fn blue() -> Self { Self::color(Color::BLUE) }
-    pub fn yellow() -> Self { Self::color(Color::YELLOW) }
-    pub fn cyan() -> Self { Self::color(Color::CYAN) }
-    pub fn magenta() -> Self { Self::color(Color::MAGENTA) }
-    pub fn white() -> Self { Self::color(Color::WHITE) }
-    pub fn black() -> Self { Self::color(Color::BLACK) }
-    pub fn gray() -> Self { Self::color(Color::GRAY) }
-    pub fn orange() -> Self { Self::color(Color::ORANGE) }
-    pub fn purple() -> Self { Self::color(Color::PURPLE) }
+    pub fn red() -> Self {
+        Self::color(Color::RED)
+    }
+    pub fn green() -> Self {
+        Self::color(Color::GREEN)
+    }
+    pub fn blue() -> Self {
+        Self::color(Color::BLUE)
+    }
+    pub fn yellow() -> Self {
+        Self::color(Color::YELLOW)
+    }
+    pub fn cyan() -> Self {
+        Self::color(Color::CYAN)
+    }
+    pub fn magenta() -> Self {
+        Self::color(Color::MAGENTA)
+    }
+    pub fn white() -> Self {
+        Self::color(Color::WHITE)
+    }
+    pub fn black() -> Self {
+        Self::color(Color::BLACK)
+    }
+    pub fn gray() -> Self {
+        Self::color(Color::GRAY)
+    }
+    pub fn orange() -> Self {
+        Self::color(Color::ORANGE)
+    }
+    pub fn purple() -> Self {
+        Self::color(Color::PURPLE)
+    }
 }

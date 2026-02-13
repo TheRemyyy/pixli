@@ -92,13 +92,14 @@ impl Transform {
         let forward = (target - self.position).normalized();
         let right_cand = up.cross(forward);
         let right = if right_cand.length_squared() < 1e-10 {
-            let ref_vec = if forward.x.abs() <= forward.y.abs() && forward.x.abs() <= forward.z.abs() {
-                Vec3::RIGHT
-            } else if forward.y.abs() <= forward.z.abs() {
-                Vec3::UP
-            } else {
-                Vec3::FORWARD
-            };
+            let ref_vec =
+                if forward.x.abs() <= forward.y.abs() && forward.x.abs() <= forward.z.abs() {
+                    Vec3::RIGHT
+                } else if forward.y.abs() <= forward.z.abs() {
+                    Vec3::UP
+                } else {
+                    Vec3::FORWARD
+                };
             forward.cross(ref_vec).normalized()
         } else {
             right_cand.normalized()

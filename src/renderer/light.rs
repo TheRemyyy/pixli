@@ -1,6 +1,6 @@
 //! Lights: directional, point, spot.
 
-use crate::math::{Vec3, Color};
+use crate::math::{Color, Vec3};
 
 /// Light type.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -18,8 +18,8 @@ pub struct Light {
     pub intensity: f32,
     pub position: Vec3,
     pub direction: Vec3,
-    pub range: f32,        // For point and spot lights.
-    pub spot_angle: f32,   // For spot lights (radians).
+    pub range: f32,      // For point and spot lights.
+    pub spot_angle: f32, // For spot lights (radians).
 }
 
 impl Light {
@@ -50,7 +50,14 @@ impl Light {
     }
 
     /// Create spot light.
-    pub fn spot(position: Vec3, direction: Vec3, color: Color, intensity: f32, range: f32, angle_degrees: f32) -> Self {
+    pub fn spot(
+        position: Vec3,
+        direction: Vec3,
+        color: Color,
+        intensity: f32,
+        range: f32,
+        angle_degrees: f32,
+    ) -> Self {
         Self {
             light_type: LightType::Spot,
             color,
@@ -84,7 +91,7 @@ impl Light {
         if self.light_type == LightType::Directional {
             return 1.0;
         }
-        
+
         let d = distance / self.range;
         (1.0 - d * d).max(0.0)
     }

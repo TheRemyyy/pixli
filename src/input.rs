@@ -1,7 +1,7 @@
 //! Input handling: keyboard, mouse, gamepad.
 
-use std::collections::HashSet;
 use crate::math::Vec2;
+use std::collections::HashSet;
 
 /// Re-export of winit key codes.
 pub use winit::keyboard::KeyCode;

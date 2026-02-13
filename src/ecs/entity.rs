@@ -25,6 +25,9 @@ impl Entity {
 
 impl Default for Entity {
     fn default() -> Self {
-        Self { id: 0, generation: 0 }
+        Self {
+            id: 0,
+            generation: 0,
+        }
     }
 }

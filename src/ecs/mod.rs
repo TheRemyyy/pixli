@@ -2,10 +2,10 @@
 //!
 //! Simple but effective ECS for game objects.
 
-mod entity;
 mod component;
+mod entity;
 mod world;
 
-pub use entity::Entity;
 pub use component::Component;
-pub use world::{World, EntityBuilder, Query};
+pub use entity::Entity;
+pub use world::{EntityBuilder, Query, World};

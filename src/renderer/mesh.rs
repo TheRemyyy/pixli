@@ -1,6 +1,6 @@
 //! Mesh: 3D geometry.
 
-use crate::math::{Vec2, Vec3, Color};
+use crate::math::{Color, Vec2, Vec3};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static MESH_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -64,62 +64,278 @@ impl Mesh {
         // Front face (+Z): tangent is +X.
         let normal = Vec3::new(0.0, 0.0, 1.0);
         let tangent = Vec3::new(1.0, 0.0, 0.0);
-        vertices.push(Vertex { position: Vec3::new(-s, -s, s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, s), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, -s, s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, s), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 1.0),
+            color: Color::WHITE,
+        });
 
         // Back face (-Z): tangent is -X.
         let normal = Vec3::new(0.0, 0.0, -1.0);
         let tangent = Vec3::new(-1.0, 0.0, 0.0);
-        vertices.push(Vertex { position: Vec3::new(s, -s, -s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, -s, -s), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, -s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, -s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, -s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, -s), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 1.0),
+            color: Color::WHITE,
+        });
 
         // Top face (+Y): tangent is +X.
         let normal = Vec3::new(0.0, 1.0, 0.0);
         let tangent = Vec3::new(1.0, 0.0, 0.0);
-        vertices.push(Vertex { position: Vec3::new(-s, s, s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, s), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, -s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, -s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, -s), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 1.0),
+            color: Color::WHITE,
+        });
 
         // Bottom face (-Y): tangent is +X.
         let normal = Vec3::new(0.0, -1.0, 0.0);
         let tangent = Vec3::new(1.0, 0.0, 0.0);
-        vertices.push(Vertex { position: Vec3::new(-s, -s, -s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, -s), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, -s, -s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, -s, s), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 1.0),
+            color: Color::WHITE,
+        });
 
         // Right face (+X): tangent is -Z.
         let normal = Vec3::new(1.0, 0.0, 0.0);
         let tangent = Vec3::new(0.0, 0.0, -1.0);
-        vertices.push(Vertex { position: Vec3::new(s, -s, s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, -s), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, -s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, -s, s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, -s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(s, s, s), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 1.0),
+            color: Color::WHITE,
+        });
 
         // Left face (-X): tangent is +Z.
         let normal = Vec3::new(-1.0, 0.0, 0.0);
         let tangent = Vec3::new(0.0, 0.0, 1.0);
-        vertices.push(Vertex { position: Vec3::new(-s, -s, -s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, -s, s), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, -s, -s), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, s), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE });
-        vertices.push(Vertex { position: Vec3::new(-s, s, -s), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, -s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 0.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, s),
+            normal,
+            tangent,
+            uv: Vec2::new(1.0, 1.0),
+            color: Color::WHITE,
+        });
+        vertices.push(Vertex {
+            position: Vec3::new(-s, s, -s),
+            normal,
+            tangent,
+            uv: Vec2::new(0.0, 1.0),
+            color: Color::WHITE,
+        });
 
         Self::from_vertices(vertices)
     }
@@ -146,7 +362,13 @@ impl Mesh {
                 let tangent = Vec3::new(-z, 0.0, x).normalized();
                 let uv = Vec2::new(u, v);
 
-                vertices.push(Vertex { position, normal, tangent, uv, color: Color::WHITE });
+                vertices.push(Vertex {
+                    position,
+                    normal,
+                    tangent,
+                    uv,
+                    color: Color::WHITE,
+                });
             }
         }
 
@@ -178,12 +400,48 @@ impl Mesh {
         let tangent = Vec3::RIGHT;
 
         let vertices = vec![
-            Vertex { position: Vec3::new(-hw, 0.0, -hd), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE },
-            Vertex { position: Vec3::new(hw, 0.0, -hd), normal, tangent, uv: Vec2::new(1.0, 0.0), color: Color::WHITE },
-            Vertex { position: Vec3::new(hw, 0.0, hd), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE },
-            Vertex { position: Vec3::new(-hw, 0.0, -hd), normal, tangent, uv: Vec2::new(0.0, 0.0), color: Color::WHITE },
-            Vertex { position: Vec3::new(hw, 0.0, hd), normal, tangent, uv: Vec2::new(1.0, 1.0), color: Color::WHITE },
-            Vertex { position: Vec3::new(-hw, 0.0, hd), normal, tangent, uv: Vec2::new(0.0, 1.0), color: Color::WHITE },
+            Vertex {
+                position: Vec3::new(-hw, 0.0, -hd),
+                normal,
+                tangent,
+                uv: Vec2::new(0.0, 0.0),
+                color: Color::WHITE,
+            },
+            Vertex {
+                position: Vec3::new(hw, 0.0, -hd),
+                normal,
+                tangent,
+                uv: Vec2::new(1.0, 0.0),
+                color: Color::WHITE,
+            },
+            Vertex {
+                position: Vec3::new(hw, 0.0, hd),
+                normal,
+                tangent,
+                uv: Vec2::new(1.0, 1.0),
+                color: Color::WHITE,
+            },
+            Vertex {
+                position: Vec3::new(-hw, 0.0, -hd),
+                normal,
+                tangent,
+                uv: Vec2::new(0.0, 0.0),
+                color: Color::WHITE,
+            },
+            Vertex {
+                position: Vec3::new(hw, 0.0, hd),
+                normal,
+                tangent,
+                uv: Vec2::new(1.0, 1.0),
+                color: Color::WHITE,
+            },
+            Vertex {
+                position: Vec3::new(-hw, 0.0, hd),
+                normal,
+                tangent,
+                uv: Vec2::new(0.0, 1.0),
+                color: Color::WHITE,
+            },
         ];
 
         Self::from_vertices(vertices)
@@ -213,14 +471,50 @@ impl Mesh {
             let tangent0 = Vec3::new(-theta0.sin(), 0.0, theta0.cos());
             let tangent1 = Vec3::new(-theta1.sin(), 0.0, theta1.cos());
             // Bottom triangle.
-            vertices.push(Vertex { position: Vec3::new(x0, -half_height, z0), normal: n0, tangent: tangent0, uv: Vec2::new(u0, 0.0), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(x1, -half_height, z1), normal: n1, tangent: tangent1, uv: Vec2::new(u1, 0.0), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(x1, half_height, z1), normal: n1, tangent: tangent1, uv: Vec2::new(u1, 1.0), color: Color::WHITE });
+            vertices.push(Vertex {
+                position: Vec3::new(x0, -half_height, z0),
+                normal: n0,
+                tangent: tangent0,
+                uv: Vec2::new(u0, 0.0),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(x1, -half_height, z1),
+                normal: n1,
+                tangent: tangent1,
+                uv: Vec2::new(u1, 0.0),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(x1, half_height, z1),
+                normal: n1,
+                tangent: tangent1,
+                uv: Vec2::new(u1, 1.0),
+                color: Color::WHITE,
+            });
 
             // Top triangle.
-            vertices.push(Vertex { position: Vec3::new(x0, -half_height, z0), normal: n0, tangent: tangent0, uv: Vec2::new(u0, 0.0), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(x1, half_height, z1), normal: n1, tangent: tangent1, uv: Vec2::new(u1, 1.0), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(x0, half_height, z0), normal: n0, tangent: tangent0, uv: Vec2::new(u0, 1.0), color: Color::WHITE });
+            vertices.push(Vertex {
+                position: Vec3::new(x0, -half_height, z0),
+                normal: n0,
+                tangent: tangent0,
+                uv: Vec2::new(u0, 0.0),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(x1, half_height, z1),
+                normal: n1,
+                tangent: tangent1,
+                uv: Vec2::new(u1, 1.0),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(x0, half_height, z0),
+                normal: n0,
+                tangent: tangent0,
+                uv: Vec2::new(u0, 1.0),
+                color: Color::WHITE,
+            });
         }
 
         // Top cap.
@@ -230,9 +524,27 @@ impl Mesh {
             let theta1 = ((i + 1) as f32 / segments as f32) * std::f32::consts::PI * 2.0;
 
             let tangent = Vec3::new(-theta0.sin(), 0.0, theta0.cos());
-            vertices.push(Vertex { position: Vec3::new(0.0, half_height, 0.0), normal: top_normal, tangent, uv: Vec2::new(0.5, 0.5), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(theta0.cos() * radius, half_height, theta0.sin() * radius), normal: top_normal, tangent, uv: Vec2::new(0.5 + theta0.cos() * 0.5, 0.5 + theta0.sin() * 0.5), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(theta1.cos() * radius, half_height, theta1.sin() * radius), normal: top_normal, tangent, uv: Vec2::new(0.5 + theta1.cos() * 0.5, 0.5 + theta1.sin() * 0.5), color: Color::WHITE });
+            vertices.push(Vertex {
+                position: Vec3::new(0.0, half_height, 0.0),
+                normal: top_normal,
+                tangent,
+                uv: Vec2::new(0.5, 0.5),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(theta0.cos() * radius, half_height, theta0.sin() * radius),
+                normal: top_normal,
+                tangent,
+                uv: Vec2::new(0.5 + theta0.cos() * 0.5, 0.5 + theta0.sin() * 0.5),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(theta1.cos() * radius, half_height, theta1.sin() * radius),
+                normal: top_normal,
+                tangent,
+                uv: Vec2::new(0.5 + theta1.cos() * 0.5, 0.5 + theta1.sin() * 0.5),
+                color: Color::WHITE,
+            });
         }
 
         // Bottom cap.
@@ -242,9 +554,27 @@ impl Mesh {
             let theta1 = ((i + 1) as f32 / segments as f32) * std::f32::consts::PI * 2.0;
 
             let tangent = Vec3::new(-theta0.sin(), 0.0, theta0.cos());
-            vertices.push(Vertex { position: Vec3::new(0.0, -half_height, 0.0), normal: bottom_normal, tangent, uv: Vec2::new(0.5, 0.5), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(theta1.cos() * radius, -half_height, theta1.sin() * radius), normal: bottom_normal, tangent, uv: Vec2::new(0.5 + theta1.cos() * 0.5, 0.5 + theta1.sin() * 0.5), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(theta0.cos() * radius, -half_height, theta0.sin() * radius), normal: bottom_normal, tangent, uv: Vec2::new(0.5 + theta0.cos() * 0.5, 0.5 + theta0.sin() * 0.5), color: Color::WHITE });
+            vertices.push(Vertex {
+                position: Vec3::new(0.0, -half_height, 0.0),
+                normal: bottom_normal,
+                tangent,
+                uv: Vec2::new(0.5, 0.5),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(theta1.cos() * radius, -half_height, theta1.sin() * radius),
+                normal: bottom_normal,
+                tangent,
+                uv: Vec2::new(0.5 + theta1.cos() * 0.5, 0.5 + theta1.sin() * 0.5),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(theta0.cos() * radius, -half_height, theta0.sin() * radius),
+                normal: bottom_normal,
+                tangent,
+                uv: Vec2::new(0.5 + theta0.cos() * 0.5, 0.5 + theta0.sin() * 0.5),
+                color: Color::WHITE,
+            });
         }
 
         Self::from_vertices(vertices)
@@ -272,9 +602,27 @@ impl Mesh {
 
             let tangent0 = Vec3::new(-theta0.sin(), 0.0, theta0.cos());
             let tangent1 = Vec3::new(-theta1.sin(), 0.0, theta1.cos());
-            vertices.push(Vertex { position: Vec3::new(x0, -half_height, z0), normal: n0, tangent: tangent0, uv: Vec2::new(0.0, 0.0), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(x1, -half_height, z1), normal: n1, tangent: tangent1, uv: Vec2::new(1.0, 0.0), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(0.0, half_height, 0.0), normal: n_tip, tangent: tangent0, uv: Vec2::new(0.5, 1.0), color: Color::WHITE });
+            vertices.push(Vertex {
+                position: Vec3::new(x0, -half_height, z0),
+                normal: n0,
+                tangent: tangent0,
+                uv: Vec2::new(0.0, 0.0),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(x1, -half_height, z1),
+                normal: n1,
+                tangent: tangent1,
+                uv: Vec2::new(1.0, 0.0),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(0.0, half_height, 0.0),
+                normal: n_tip,
+                tangent: tangent0,
+                uv: Vec2::new(0.5, 1.0),
+                color: Color::WHITE,
+            });
         }
 
         // Bottom cap.
@@ -284,16 +632,39 @@ impl Mesh {
             let theta1 = ((i + 1) as f32 / segments as f32) * std::f32::consts::PI * 2.0;
 
             let tangent = Vec3::new(-theta0.sin(), 0.0, theta0.cos());
-            vertices.push(Vertex { position: Vec3::new(0.0, -half_height, 0.0), normal: bottom_normal, tangent, uv: Vec2::new(0.5, 0.5), color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(theta1.cos() * radius, -half_height, theta1.sin() * radius), normal: bottom_normal, tangent, uv: Vec2::ZERO, color: Color::WHITE });
-            vertices.push(Vertex { position: Vec3::new(theta0.cos() * radius, -half_height, theta0.sin() * radius), normal: bottom_normal, tangent, uv: Vec2::ZERO, color: Color::WHITE });
+            vertices.push(Vertex {
+                position: Vec3::new(0.0, -half_height, 0.0),
+                normal: bottom_normal,
+                tangent,
+                uv: Vec2::new(0.5, 0.5),
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(theta1.cos() * radius, -half_height, theta1.sin() * radius),
+                normal: bottom_normal,
+                tangent,
+                uv: Vec2::ZERO,
+                color: Color::WHITE,
+            });
+            vertices.push(Vertex {
+                position: Vec3::new(theta0.cos() * radius, -half_height, theta0.sin() * radius),
+                normal: bottom_normal,
+                tangent,
+                uv: Vec2::ZERO,
+                color: Color::WHITE,
+            });
         }
 
         Self::from_vertices(vertices)
     }
 
     /// Create a torus.
-    pub fn torus(major_radius: f32, minor_radius: f32, major_segments: u32, minor_segments: u32) -> Self {
+    pub fn torus(
+        major_radius: f32,
+        minor_radius: f32,
+        major_segments: u32,
+        minor_segments: u32,
+    ) -> Self {
         let mut vertices = Vec::new();
 
         for i in 0..major_segments {
@@ -321,13 +692,49 @@ impl Mesh {
 
                 let t00 = Vec3::new(-theta0.sin(), 0.0, theta0.cos());
                 let t10 = Vec3::new(-theta1.sin(), 0.0, theta1.cos());
-                vertices.push(Vertex { position: p00, normal: n00, tangent: t00, uv: Vec2::ZERO, color: Color::WHITE });
-                vertices.push(Vertex { position: p10, normal: n10, tangent: t10, uv: Vec2::ZERO, color: Color::WHITE });
-                vertices.push(Vertex { position: p11, normal: n11, tangent: t10, uv: Vec2::ZERO, color: Color::WHITE });
+                vertices.push(Vertex {
+                    position: p00,
+                    normal: n00,
+                    tangent: t00,
+                    uv: Vec2::ZERO,
+                    color: Color::WHITE,
+                });
+                vertices.push(Vertex {
+                    position: p10,
+                    normal: n10,
+                    tangent: t10,
+                    uv: Vec2::ZERO,
+                    color: Color::WHITE,
+                });
+                vertices.push(Vertex {
+                    position: p11,
+                    normal: n11,
+                    tangent: t10,
+                    uv: Vec2::ZERO,
+                    color: Color::WHITE,
+                });
 
-                vertices.push(Vertex { position: p00, normal: n00, tangent: t00, uv: Vec2::ZERO, color: Color::WHITE });
-                vertices.push(Vertex { position: p11, normal: n11, tangent: t10, uv: Vec2::ZERO, color: Color::WHITE });
-                vertices.push(Vertex { position: p01, normal: n01, tangent: t00, uv: Vec2::ZERO, color: Color::WHITE });
+                vertices.push(Vertex {
+                    position: p00,
+                    normal: n00,
+                    tangent: t00,
+                    uv: Vec2::ZERO,
+                    color: Color::WHITE,
+                });
+                vertices.push(Vertex {
+                    position: p11,
+                    normal: n11,
+                    tangent: t10,
+                    uv: Vec2::ZERO,
+                    color: Color::WHITE,
+                });
+                vertices.push(Vertex {
+                    position: p01,
+                    normal: n01,
+                    tangent: t00,
+                    uv: Vec2::ZERO,
+                    color: Color::WHITE,
+                });
             }
         }
 
@@ -353,13 +760,49 @@ impl Mesh {
                 };
 
                 let tangent = Vec3::RIGHT;
-                vertices.push(Vertex { position: Vec3::new(x, 0.0, z), normal, tangent, uv: Vec2::new(0.0, 0.0), color });
-                vertices.push(Vertex { position: Vec3::new(x + tile_size, 0.0, z), normal, tangent, uv: Vec2::new(1.0, 0.0), color });
-                vertices.push(Vertex { position: Vec3::new(x + tile_size, 0.0, z + tile_size), normal, tangent, uv: Vec2::new(1.0, 1.0), color });
+                vertices.push(Vertex {
+                    position: Vec3::new(x, 0.0, z),
+                    normal,
+                    tangent,
+                    uv: Vec2::new(0.0, 0.0),
+                    color,
+                });
+                vertices.push(Vertex {
+                    position: Vec3::new(x + tile_size, 0.0, z),
+                    normal,
+                    tangent,
+                    uv: Vec2::new(1.0, 0.0),
+                    color,
+                });
+                vertices.push(Vertex {
+                    position: Vec3::new(x + tile_size, 0.0, z + tile_size),
+                    normal,
+                    tangent,
+                    uv: Vec2::new(1.0, 1.0),
+                    color,
+                });
 
-                vertices.push(Vertex { position: Vec3::new(x, 0.0, z), normal, tangent, uv: Vec2::new(0.0, 0.0), color });
-                vertices.push(Vertex { position: Vec3::new(x + tile_size, 0.0, z + tile_size), normal, tangent, uv: Vec2::new(1.0, 1.0), color });
-                vertices.push(Vertex { position: Vec3::new(x, 0.0, z + tile_size), normal, tangent, uv: Vec2::new(0.0, 1.0), color });
+                vertices.push(Vertex {
+                    position: Vec3::new(x, 0.0, z),
+                    normal,
+                    tangent,
+                    uv: Vec2::new(0.0, 0.0),
+                    color,
+                });
+                vertices.push(Vertex {
+                    position: Vec3::new(x + tile_size, 0.0, z + tile_size),
+                    normal,
+                    tangent,
+                    uv: Vec2::new(1.0, 1.0),
+                    color,
+                });
+                vertices.push(Vertex {
+                    position: Vec3::new(x, 0.0, z + tile_size),
+                    normal,
+                    tangent,
+                    uv: Vec2::new(0.0, 1.0),
+                    color,
+                });
             }
         }
 

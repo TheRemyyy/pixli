@@ -71,10 +71,7 @@ fn setup(world: &mut World, renderer: &mut Renderer) {
     let muzzle_mesh_id = renderer.upload_unlit_mesh(&create_muzzle_flash_mesh());
     let cam = &renderer.camera;
     let fwd = cam.forward();
-    let vm_pos = cam.position
-        + fwd * 0.38
-        + cam.right() * 0.14
-        - cam.up() * 0.18;
+    let vm_pos = cam.position + fwd * 0.38 + cam.right() * 0.14 - cam.up() * 0.18;
     let vm_rot = Quat::from_rotation_axes(cam.right(), cam.up(), cam.forward());
 
     world

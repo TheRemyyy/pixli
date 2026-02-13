@@ -1,19 +1,19 @@
 //! Camera: view and projection.
 
-use crate::math::{Vec3, Mat4, Quat};
+use crate::math::{Mat4, Quat, Vec3};
 
 /// Camera.
 pub struct Camera {
     pub position: Vec3,
     pub rotation: Quat,
-    pub fov: f32,      // Field of view in radians.
-    pub aspect: f32,   // Aspect ratio.
-    pub near: f32,     // Near clipping plane.
-    pub far: f32,      // Far clipping plane.
-    
+    pub fov: f32,    // Field of view in radians.
+    pub aspect: f32, // Aspect ratio.
+    pub near: f32,   // Near clipping plane.
+    pub far: f32,    // Far clipping plane.
+
     // Euler angles for easier control.
-    pub yaw: f32,      // Rotation around Y axis.
-    pub pitch: f32,    // Rotation around X axis.
+    pub yaw: f32,   // Rotation around Y axis.
+    pub pitch: f32, // Rotation around X axis.
 }
 
 impl Camera {
@@ -44,7 +44,8 @@ impl Camera {
             self.yaw.cos() * self.pitch.cos(),
             self.pitch.sin(),
             self.yaw.sin() * self.pitch.cos(),
-        ).normalized()
+        )
+        .normalized()
     }
 
     /// Get right direction (fallback only when looking straight up or down).
@@ -77,7 +78,8 @@ impl Camera {
             (self.yaw + std::f32::consts::FRAC_PI_2).cos(),
             0.0,
             (self.yaw + std::f32::consts::FRAC_PI_2).sin(),
-        ).normalized()
+        )
+        .normalized()
     }
 
     /// Get view matrix.
@@ -108,7 +110,7 @@ impl Camera {
     pub fn process_mouse(&mut self, delta_x: f32, delta_y: f32, sensitivity: f32) {
         self.yaw += delta_x * sensitivity;
         self.pitch -= delta_y * sensitivity;
-        
+
         // Clamp pitch to avoid flipping.
         let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
         self.pitch = self.pitch.clamp(-max_pitch, max_pitch);
@@ -183,7 +185,8 @@ impl FpsCameraController {
         }
 
         // Movement.
-        let sprint = input.key_pressed(KeyCode::ShiftLeft) || input.key_pressed(KeyCode::ShiftRight);
+        let sprint =
+            input.key_pressed(KeyCode::ShiftLeft) || input.key_pressed(KeyCode::ShiftRight);
         let speed = self.speed * if sprint { self.sprint_multiplier } else { 1.0 } * delta;
 
         let move_vec = input.movement_vector_normalized();

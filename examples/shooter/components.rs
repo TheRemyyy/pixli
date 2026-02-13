@@ -35,7 +35,7 @@ impl Health {
 /// Weapon state: fire rate and last shot time.
 pub struct WeaponState {
     pub last_shot_time: f32,
-    pub fire_rate: f32,  // Seconds between shots
+    pub fire_rate: f32, // Seconds between shots
 }
 
 impl WeaponState {

@@ -14,14 +14,14 @@ use winit::{
     window::{CursorGrabMode, Window, WindowId},
 };
 
+use crate::audio::Audio;
 use crate::ecs::World;
 use crate::error::{Error, Result};
 use crate::input::{Input, MouseButton};
+use crate::physics::Physics;
 use crate::renderer::Renderer;
 use crate::time::Time;
-use crate::window::{WindowConfig, Window as EngineWindow};
-use crate::physics::Physics;
-use crate::audio::Audio;
+use crate::window::{Window as EngineWindow, WindowConfig};
 
 /// Game state passed to each system every frame.
 pub struct GameState<'a> {
@@ -201,7 +201,9 @@ impl AppState {
         let Some(_window) = &self.window else { return };
         let Some(device) = &self.device else { return };
         let Some(queue) = &self.queue else { return };
-        let Some(config) = &self.surface_config else { return };
+        let Some(config) = &self.surface_config else {
+            return;
+        };
 
         // Initialize renderer
         self.renderer.init(
@@ -220,7 +222,11 @@ impl AppState {
         }
 
         // Upload all meshes
-        for entity in self.world.query::<(&crate::math::Transform, &crate::renderer::Mesh)>().iter() {
+        for entity in self
+            .world
+            .query::<(&crate::math::Transform, &crate::renderer::Mesh)>()
+            .iter()
+        {
             if let Some(mesh) = self.world.get::<crate::renderer::Mesh>(entity) {
                 self.renderer.upload_mesh(mesh);
             }
@@ -262,17 +268,18 @@ impl ApplicationHandler for AppState {
                 }
             };
 
-            let adapter = match pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })) {
-                Some(a) => a,
-                None => {
-                    self.set_init_error_and_exit(event_loop, Error::NoAdapter);
-                    return;
-                }
-            };
+            let adapter =
+                match pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: Some(&surface),
+                    force_fallback_adapter: false,
+                })) {
+                    Some(a) => a,
+                    None => {
+                        self.set_init_error_and_exit(event_loop, Error::NoAdapter);
+                        return;
+                    }
+                };
 
             log::info!("Using adapter: {:?}", adapter.get_info());
 
@@ -287,10 +294,7 @@ impl ApplicationHandler for AppState {
             )) {
                 Ok(pair) => pair,
                 Err(e) => {
-                    self.set_init_error_and_exit(
-                        event_loop,
-                        Error::DeviceRequest(e.to_string()),
-                    );
+                    self.set_init_error_and_exit(event_loop, Error::DeviceRequest(e.to_string()));
                     return;
                 }
             };
@@ -299,7 +303,8 @@ impl ApplicationHandler for AppState {
             let queue = Arc::new(queue);
 
             let surface_caps = surface.get_capabilities(&adapter);
-            let surface_format = surface_caps.formats
+            let surface_format = surface_caps
+                .formats
                 .iter()
                 .find(|f| f.is_srgb())
                 .copied()
@@ -344,10 +349,10 @@ impl ApplicationHandler for AppState {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            
+
             WindowEvent::Resized(size) => {
-                if let (Some(device), Some(surface), Some(config)) = 
-                    (&self.device, &self.surface, &mut self.surface_config) 
+                if let (Some(device), Some(surface), Some(config)) =
+                    (&self.device, &self.surface, &mut self.surface_config)
                 {
                     config.width = size.width.max(1);
                     config.height = size.height.max(1);
@@ -371,11 +376,12 @@ impl ApplicationHandler for AppState {
             }
 
             WindowEvent::KeyboardInput {
-                event: KeyEvent {
-                    physical_key: PhysicalKey::Code(key_code),
-                    state,
-                    ..
-                },
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(key_code),
+                        state,
+                        ..
+                    },
                 ..
             } => {
                 match state {
@@ -402,11 +408,12 @@ impl ApplicationHandler for AppState {
                 match state {
                     ElementState::Pressed => {
                         self.input.on_mouse_button_pressed(button);
-                        
+
                         // Capture mouse on click
                         if !self.input.is_mouse_captured() {
                             if let Some(window) = &self.window {
-                                let _ = window.set_cursor_grab(CursorGrabMode::Confined)
+                                let _ = window
+                                    .set_cursor_grab(CursorGrabMode::Confined)
                                     .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked));
                                 window.set_cursor_visible(false);
                                 self.input.set_mouse_captured(true);
@@ -418,7 +425,8 @@ impl ApplicationHandler for AppState {
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                self.input.on_mouse_moved(position.x as f32, position.y as f32);
+                self.input
+                    .on_mouse_moved(position.x as f32, position.y as f32);
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
@@ -460,22 +468,30 @@ impl ApplicationHandler for AppState {
                 if let Some(surface) = &self.surface {
                     match surface.get_current_texture() {
                         Ok(output) => {
-                            let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+                            let view = output
+                                .texture
+                                .create_view(&wgpu::TextureViewDescriptor::default());
                             self.renderer.render(&self.world, &view);
                             output.present();
                         }
                         Err(wgpu::SurfaceError::Lost) => {
-                            if let (Some(device), Some(config)) = (&self.device, &self.surface_config) {
+                            if let (Some(device), Some(config)) =
+                                (&self.device, &self.surface_config)
+                            {
                                 surface.configure(device, config);
                             }
                         }
                         Err(wgpu::SurfaceError::Outdated) => {
-                            if let (Some(device), Some(config)) = (&self.device, &self.surface_config) {
+                            if let (Some(device), Some(config)) =
+                                (&self.device, &self.surface_config)
+                            {
                                 surface.configure(device, config);
                             }
                         }
                         Err(wgpu::SurfaceError::Timeout) => {
-                            log::trace!("Surface get_current_texture timeout (e.g. vsync), skip frame");
+                            log::trace!(
+                                "Surface get_current_texture timeout (e.g. vsync), skip frame"
+                            );
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => {
                             log::error!("GPU out of memory, exiting");
@@ -505,7 +521,12 @@ impl ApplicationHandler for AppState {
         }
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: winit::event::DeviceId, event: DeviceEvent) {
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: DeviceEvent,
+    ) {
         if let DeviceEvent::MouseMotion { delta } = event {
             if self.input.is_mouse_captured() {
                 self.input.on_mouse_delta(delta.0 as f32, delta.1 as f32);

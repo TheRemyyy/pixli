@@ -8,8 +8,8 @@ mod rigidbody;
 pub use collider::{Collider, ColliderShape};
 pub use rigidbody::RigidBody;
 
+use crate::ecs::{Entity, World};
 use crate::math::Vec3;
-use crate::ecs::{World, Entity};
 use wide::f32x4;
 
 /// Convert Vec3 to f32x4 (x, y, z, 0) for SIMD.
@@ -87,7 +87,9 @@ impl Physics {
 
         // Update positions.
         for &entity in &entities {
-            let Some(rb) = world.get::<RigidBody>(entity) else { continue };
+            let Some(rb) = world.get::<RigidBody>(entity) else {
+                continue;
+            };
             let velocity = rb.velocity;
             if let Some(transform) = world.get_mut::<crate::math::Transform>(entity) {
                 transform.position += velocity * delta;
@@ -118,7 +120,9 @@ impl Physics {
                     }
                 };
 
-                if let Some((point, normal, penetration)) = collider_a.collision_info(&collider_b, pos_a, pos_b) {
+                if let Some((point, normal, penetration)) =
+                    collider_a.collision_info(&collider_b, pos_a, pos_b)
+                {
                     // Normal points from B toward A (direction to push A out of collision).
                     self.collision_events.push(CollisionEvent {
                         entity_a,
@@ -133,8 +137,14 @@ impl Physics {
                         continue;
                     }
 
-                    let rb_a_kinematic = world.get::<RigidBody>(entity_a).map(|r| r.is_kinematic).unwrap_or(true);
-                    let rb_b_kinematic = world.get::<RigidBody>(entity_b).map(|r| r.is_kinematic).unwrap_or(true);
+                    let rb_a_kinematic = world
+                        .get::<RigidBody>(entity_a)
+                        .map(|r| r.is_kinematic)
+                        .unwrap_or(true);
+                    let rb_b_kinematic = world
+                        .get::<RigidBody>(entity_b)
+                        .map(|r| r.is_kinematic)
+                        .unwrap_or(true);
 
                     // 1) Penetration resolution: push entities out along normal so they do not overlap.
                     if !rb_a_kinematic && !rb_b_kinematic {
@@ -188,7 +198,13 @@ impl Physics {
     }
 
     /// Raycast into the world. Returns (Entity, hit point, distance, normal).
-    pub fn raycast(&self, world: &World, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<(Entity, Vec3, f32, Vec3)> {
+    pub fn raycast(
+        &self,
+        world: &World,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+    ) -> Option<(Entity, Vec3, f32, Vec3)> {
         let direction = direction.normalized();
         let mut closest: Option<(Entity, Vec3, f32, Vec3)> = None;
 
@@ -196,7 +212,9 @@ impl Physics {
             let transform = world.get::<crate::math::Transform>(entity)?;
             let collider = world.get::<Collider>(entity)?;
 
-            if let Some((hit_point, distance, normal)) = collider.raycast(origin, direction, transform.position) {
+            if let Some((hit_point, distance, normal)) =
+                collider.raycast(origin, direction, transform.position)
+            {
                 if distance <= max_distance {
                     let is_closer = match &closest {
                         None => true,

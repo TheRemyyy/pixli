@@ -1,7 +1,7 @@
 //! Time management: delta time, FPS, timers.
 
-use std::time::Instant;
 use std::collections::VecDeque;
+use std::time::Instant;
 
 /// Time state.
 pub struct Time {
@@ -11,15 +11,15 @@ pub struct Time {
     start_time: Instant,
     #[allow(dead_code)]
     last_frame: Instant,
-    
+
     // FPS calculation.
     fps: f32,
     frame_times: VecDeque<f32>,
     fps_update_timer: f32,
-    
+
     // Time scale for slow motion effects.
     time_scale: f32,
-    
+
     // Fixed timestep accumulator.
     fixed_delta: f32,
     fixed_accumulator: f32,
@@ -48,20 +48,20 @@ impl Time {
         self.delta = delta;
         self.elapsed += delta;
         self.frame_count += 1;
-        
+
         // FPS calculation.
         self.frame_times.push_back(delta);
         if self.frame_times.len() > 100 {
             self.frame_times.pop_front();
         }
-        
+
         self.fps_update_timer += delta;
         if self.fps_update_timer >= 0.25 {
             self.fps_update_timer = 0.0;
             let avg: f32 = self.frame_times.iter().sum::<f32>() / self.frame_times.len() as f32;
             self.fps = 1.0 / avg;
         }
-        
+
         // Fixed timestep accumulator.
         self.fixed_accumulator += delta * self.time_scale;
     }
@@ -199,7 +199,7 @@ impl Timer {
         }
 
         self.elapsed += delta;
-        
+
         if self.elapsed >= self.duration {
             if self.repeating {
                 self.elapsed -= self.duration;
@@ -208,7 +208,7 @@ impl Timer {
             }
             return true;
         }
-        
+
         false
     }
 

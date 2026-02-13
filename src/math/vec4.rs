@@ -14,8 +14,18 @@ pub struct Vec4 {
 }
 
 impl Vec4 {
-    pub const ZERO: Self = Self { x: 0.0, y: 0.0, z: 0.0, w: 0.0 };
-    pub const ONE: Self = Self { x: 1.0, y: 1.0, z: 1.0, w: 1.0 };
+    pub const ZERO: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 0.0,
+    };
+    pub const ONE: Self = Self {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+        w: 1.0,
+    };
 
     #[inline]
     pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
@@ -24,7 +34,12 @@ impl Vec4 {
 
     #[inline]
     pub fn from_vec3(v: Vec3, w: f32) -> Self {
-        Self { x: v.x, y: v.y, z: v.z, w }
+        Self {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+            w,
+        }
     }
 
     #[inline]
@@ -45,14 +60,24 @@ impl Vec4 {
 impl Add for Vec4 {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
-        Self::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z, self.w + rhs.w)
+        Self::new(
+            self.x + rhs.x,
+            self.y + rhs.y,
+            self.z + rhs.z,
+            self.w + rhs.w,
+        )
     }
 }
 
 impl Sub for Vec4 {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self {
-        Self::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z, self.w - rhs.w)
+        Self::new(
+            self.x - rhs.x,
+            self.y - rhs.y,
+            self.z - rhs.z,
+            self.w - rhs.w,
+        )
     }
 }
 

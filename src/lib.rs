@@ -47,14 +47,17 @@ pub use error::{Error, Result};
 
 /// Prelude: import common types with `use pixli::prelude::*`.
 pub mod prelude {
-    pub use crate::app::{App, GameState, System, StartupSystem};
-    pub use crate::error::{Error, Result};
+    pub use crate::app::{App, GameState, StartupSystem, System};
     pub use crate::audio::{Audio, AudioSource, Sound};
-    pub use crate::ecs::{Component, Entity, World, EntityBuilder, Query};
+    pub use crate::ecs::{Component, Entity, EntityBuilder, Query, World};
+    pub use crate::error::{Error, Result};
     pub use crate::input::{Input, KeyCode, MouseButton};
-    pub use crate::math::{Vec2, Vec3, Vec4, Mat4, Quat, Transform, Color};
-    pub use crate::physics::{Physics, Collider, RigidBody, CollisionEvent};
-    pub use crate::renderer::{Renderer, Camera, Mesh, Material, Texture, Light, LightType, UnlitVertex, UnlitMesh, UnlitMeshRef};
+    pub use crate::math::{Color, Mat4, Quat, Transform, Vec2, Vec3, Vec4};
+    pub use crate::physics::{Collider, CollisionEvent, Physics, RigidBody};
+    pub use crate::renderer::{
+        Camera, Light, LightType, Material, Mesh, Renderer, Texture, UnlitMesh, UnlitMeshRef,
+        UnlitVertex,
+    };
     pub use crate::time::Time;
     pub use crate::window::Window;
 }
@@ -130,9 +133,13 @@ mod tests {
     #[test]
     fn test_query() {
         let mut world = World::new();
-        world.spawn().with(Transform::new()).with(Mesh::cube(1.0)).build();
+        world
+            .spawn()
+            .with(Transform::new())
+            .with(Mesh::cube(1.0))
+            .build();
         world.spawn().with(Transform::new()).build();
-        
+
         let query = world.query::<(&Transform, &Mesh)>();
         assert_eq!(query.count(), 1);
     }
@@ -141,10 +148,10 @@ mod tests {
     fn test_physics_aabb_collision() {
         let a = Collider::box_collider(Vec3::splat(1.0));
         let b = Collider::box_collider(Vec3::splat(1.0));
-        
+
         let pos_a = Vec3::ZERO;
         let pos_b = Vec3::new(0.5, 0.0, 0.0);
-        
+
         assert!(a.intersects(&b, pos_a, pos_b));
     }
 
@@ -152,10 +159,10 @@ mod tests {
     fn test_physics_sphere_collision() {
         let a = Collider::sphere(1.0);
         let b = Collider::sphere(1.0);
-        
+
         let pos_a = Vec3::ZERO;
         let pos_b = Vec3::new(1.5, 0.0, 0.0);
-        
+
         assert!(a.intersects(&b, pos_a, pos_b));
     }
 

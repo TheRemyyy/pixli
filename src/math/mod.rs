@@ -1,12 +1,12 @@
 //! Math utilities: vectors, matrices, transforms, colors.
 
-mod vec2;
-mod vec3;
-mod vec4;
+mod color;
 mod mat4;
 mod quat;
 mod transform;
-mod color;
+mod vec2;
+mod vec3;
+mod vec4;
 
 pub use color::Color;
 pub use mat4::Mat4;

@@ -10,7 +10,7 @@ pub struct RigidBody {
     pub mass: f32,
     pub drag: f32,
     pub angular_drag: f32,
-    pub is_kinematic: bool,  // Kinematic bodies are not affected by physics.
+    pub is_kinematic: bool, // Kinematic bodies are not affected by physics.
     pub use_gravity: bool,
     pub freeze_rotation: bool,
 }
@@ -101,7 +101,7 @@ impl RigidBody {
     pub fn add_force_at_position(&mut self, force: Vec3, position: Vec3, center_of_mass: Vec3) {
         if !self.is_kinematic {
             self.velocity += force / self.mass;
-            
+
             if !self.freeze_rotation {
                 let torque = (position - center_of_mass).cross(force);
                 self.angular_velocity += torque / self.mass;

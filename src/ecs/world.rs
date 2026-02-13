@@ -3,9 +3,9 @@
 //! Component storage uses Vec<Option<>> indexed by entity id (sparse set style)
 //! for cache friendly iteration and O(1) get/set by id.
 
+use super::{Component, Entity};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use super::{Entity, Component};
 
 /// Storage for a single component type. Indexed by entity id (no hash, cache friendly).
 pub(crate) struct ComponentStorage {
@@ -30,7 +30,10 @@ impl ComponentStorage {
     }
 
     fn get_mut<T: Component>(&mut self, entity_id: u32) -> Option<&mut T> {
-        self.data.get_mut(entity_id as usize)?.as_mut()?.downcast_mut()
+        self.data
+            .get_mut(entity_id as usize)?
+            .as_mut()?
+            .downcast_mut()
     }
 
     fn remove(&mut self, entity_id: u32) {
@@ -138,7 +141,8 @@ impl World {
         }
 
         let type_id = TypeId::of::<T>();
-        let storage = self.components
+        let storage = self
+            .components
             .entry(type_id)
             .or_insert_with(ComponentStorage::new);
         storage.insert(entity.id, component);
@@ -313,16 +317,17 @@ impl<A: Component, B: Component> QueryTuple for (&A, &B) {
         let storage_b = world.get_storage::<B>();
 
         match (storage_a, storage_b) {
-            (Some(a), Some(b)) => {
-                a.entity_ids()
-                    .filter(|id| b.contains(*id))
-                    .filter(|id| {
-                        world.entities.get(*id as usize)
-                            .map(|s| s.alive)
-                            .unwrap_or(false)
-                    })
-                    .count()
-            }
+            (Some(a), Some(b)) => a
+                .entity_ids()
+                .filter(|id| b.contains(*id))
+                .filter(|id| {
+                    world
+                        .entities
+                        .get(*id as usize)
+                        .map(|s| s.alive)
+                        .unwrap_or(false)
+                })
+                .count(),
             _ => 0,
         }
     }
@@ -332,19 +337,17 @@ impl<A: Component, B: Component> QueryTuple for (&A, &B) {
         let storage_b = world.get_storage::<B>();
 
         match (storage_a, storage_b) {
-            (Some(a), Some(b)) => {
-                Box::new(a.entity_ids().filter_map(move |id| {
-                    if !b.contains(id) {
-                        return None;
-                    }
-                    let slot = world.entities.get(id as usize)?;
-                    if slot.alive {
-                        Some(Entity::new(id, slot.generation))
-                    } else {
-                        None
-                    }
-                }))
-            }
+            (Some(a), Some(b)) => Box::new(a.entity_ids().filter_map(move |id| {
+                if !b.contains(id) {
+                    return None;
+                }
+                let slot = world.entities.get(id as usize)?;
+                if slot.alive {
+                    Some(Entity::new(id, slot.generation))
+                } else {
+                    None
+                }
+            })),
             _ => Box::new(std::iter::empty()),
         }
     }
@@ -358,16 +361,17 @@ impl<A: Component, B: Component, C: Component> QueryTuple for (&A, &B, &C) {
         let storage_c = world.get_storage::<C>();
 
         match (storage_a, storage_b, storage_c) {
-            (Some(a), Some(b), Some(c)) => {
-                a.entity_ids()
-                    .filter(|id| b.contains(*id) && c.contains(*id))
-                    .filter(|id| {
-                        world.entities.get(*id as usize)
-                            .map(|s| s.alive)
-                            .unwrap_or(false)
-                    })
-                    .count()
-            }
+            (Some(a), Some(b), Some(c)) => a
+                .entity_ids()
+                .filter(|id| b.contains(*id) && c.contains(*id))
+                .filter(|id| {
+                    world
+                        .entities
+                        .get(*id as usize)
+                        .map(|s| s.alive)
+                        .unwrap_or(false)
+                })
+                .count(),
             _ => 0,
         }
     }
@@ -378,19 +382,17 @@ impl<A: Component, B: Component, C: Component> QueryTuple for (&A, &B, &C) {
         let storage_c = world.get_storage::<C>();
 
         match (storage_a, storage_b, storage_c) {
-            (Some(a), Some(b), Some(c)) => {
-                Box::new(a.entity_ids().filter_map(move |id| {
-                    if !b.contains(id) || !c.contains(id) {
-                        return None;
-                    }
-                    let slot = world.entities.get(id as usize)?;
-                    if slot.alive {
-                        Some(Entity::new(id, slot.generation))
-                    } else {
-                        None
-                    }
-                }))
-            }
+            (Some(a), Some(b), Some(c)) => Box::new(a.entity_ids().filter_map(move |id| {
+                if !b.contains(id) || !c.contains(id) {
+                    return None;
+                }
+                let slot = world.entities.get(id as usize)?;
+                if slot.alive {
+                    Some(Entity::new(id, slot.generation))
+                } else {
+                    None
+                }
+            })),
             _ => Box::new(std::iter::empty()),
         }
     }

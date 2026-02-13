@@ -1,13 +1,12 @@
 //! Game systems: player movement, shooting, damage.
 
-use pixli::prelude::*;
 use pixli::ecs::Entity;
-use pixli::math::{Vec3, Transform, Quat};
+use pixli::math::{Quat, Transform, Vec3};
+use pixli::prelude::*;
 
 use crate::components::{
-    PlayerController, PlayerEntity, WeaponState, Health,
-    ViewModel, RecoilAmount, MuzzleFlash, Crosshair,
-    Tracer, TracerMeshId, RaycastIgnore,
+    Crosshair, Health, MuzzleFlash, PlayerController, PlayerEntity, RaycastIgnore, RecoilAmount,
+    Tracer, TracerMeshId, ViewModel, WeaponState,
 };
 use crate::config::{ARENA_HALF, CAMERA_HEIGHT};
 
@@ -95,8 +94,7 @@ pub fn player_controller_system(state: &mut GameState) {
 
     let move_vec = state.input.movement_vector_normalized();
     let cam = &state.renderer.camera;
-    let movement =
-        cam.forward_horizontal() * move_vec.y + cam.right_horizontal() * move_vec.x;
+    let movement = cam.forward_horizontal() * move_vec.y + cam.right_horizontal() * move_vec.x;
 
     let mut new_velocity_y = velocity_y;
     let mut new_grounded = is_grounded;
@@ -113,7 +111,11 @@ pub fn player_controller_system(state: &mut GameState) {
         rb.velocity.y = new_velocity_y;
     }
 
-    let pos = state.world.get::<Transform>(player_entity).unwrap().position;
+    let pos = state
+        .world
+        .get::<Transform>(player_entity)
+        .unwrap()
+        .position;
     state.renderer.camera.position = pos;
 
     if pos.y <= CAMERA_HEIGHT {
@@ -187,21 +189,27 @@ pub fn shooting_system(state: &mut GameState) {
     let scale = Vec3::new(TRACER_THICKNESS, TRACER_THICKNESS, length);
 
     let tracer_entity = state.world.query::<(&TracerMeshId,)>().iter().next();
-    let tracer_mesh_id = tracer_entity.and_then(|e| state.world.get::<TracerMeshId>(e).map(|t| t.0));
+    let tracer_mesh_id =
+        tracer_entity.and_then(|e| state.world.get::<TracerMeshId>(e).map(|t| t.0));
     if let Some(mesh_id) = tracer_mesh_id {
         state
             .world
             .spawn()
             .with(Tracer(TRACER_DURATION))
             .with(RaycastIgnore)
-            .with(Transform::from_position_rotation_scale(midpoint, rot, scale))
+            .with(Transform::from_position_rotation_scale(
+                midpoint, rot, scale,
+            ))
             .with(UnlitMeshRef(mesh_id))
             .build();
     }
 
     // Recoil and muzzle flash (we just fired).
-    let viewmodel_entities: Vec<Entity> =
-        state.world.query::<(&ViewModel, &RecoilAmount)>().iter().collect();
+    let viewmodel_entities: Vec<Entity> = state
+        .world
+        .query::<(&ViewModel, &RecoilAmount)>()
+        .iter()
+        .collect();
     for e in viewmodel_entities {
         if let Some(ra) = state.world.get_mut::<RecoilAmount>(e) {
             ra.0 += RECOIL_IMPULSE;
@@ -245,9 +253,7 @@ pub fn viewmodel_system(state: &mut GameState) {
     let cam = &state.renderer.camera;
 
     let fwd = cam.forward();
-    let base_pos = cam.position
-        + fwd * GUN_OFFSET_FWD
-        + cam.right() * GUN_OFFSET_RIGHT
+    let base_pos = cam.position + fwd * GUN_OFFSET_FWD + cam.right() * GUN_OFFSET_RIGHT
         - cam.up() * GUN_OFFSET_DOWN;
     let target_rot = camera_rotation(cam);
 
@@ -274,8 +280,11 @@ pub fn viewmodel_system(state: &mut GameState) {
     }
 
     let muzzle_pos = base_pos + cam.forward() * (-BARREL_LENGTH);
-    let muzzle_entities: Vec<Entity> =
-        state.world.query::<(&MuzzleFlash, &Transform)>().iter().collect();
+    let muzzle_entities: Vec<Entity> = state
+        .world
+        .query::<(&MuzzleFlash, &Transform)>()
+        .iter()
+        .collect();
     for entity in muzzle_entities {
         let mf = state.world.get::<MuzzleFlash>(entity).unwrap().0;
         if let Some(t) = state.world.get_mut::<Transform>(entity) {
@@ -297,7 +306,11 @@ pub fn crosshair_system(state: &mut GameState) {
     let rot = camera_rotation(cam);
     let scale = Vec3::splat(0.12);
 
-    let entities: Vec<Entity> = state.world.query::<(&Crosshair, &Transform)>().iter().collect();
+    let entities: Vec<Entity> = state
+        .world
+        .query::<(&Crosshair, &Transform)>()
+        .iter()
+        .collect();
     for e in entities {
         if let Some(t) = state.world.get_mut::<Transform>(e) {
             t.position = pos;

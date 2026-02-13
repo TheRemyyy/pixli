@@ -1,7 +1,7 @@
 //! Map: floor, cover obstacles, lighting and fog.
 
 use pixli::prelude::*;
-use pixli::renderer::{UnlitVertex, UnlitMesh, UnlitMeshRef, Mesh, Material};
+use pixli::renderer::{Material, Mesh, UnlitMesh, UnlitMeshRef, UnlitVertex};
 
 use crate::config::ARENA_HALF;
 
@@ -94,8 +94,10 @@ pub fn spawn_map(world: &mut World, renderer: &mut Renderer) {
         .spawn()
         .with(Transform::default())
         .with(UnlitMeshRef(ground_mesh_id))
-        .with(Collider::box_collider(Vec3::new(ground_size as f32, 0.02, ground_size as f32))
-            .with_offset(Vec3::new(0.0, -0.01, 0.0)))
+        .with(
+            Collider::box_collider(Vec3::new(ground_size as f32, 0.02, ground_size as f32))
+                .with_offset(Vec3::new(0.0, -0.01, 0.0)),
+        )
         .with(RigidBody::statik())
         .build();
 

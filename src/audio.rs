@@ -12,14 +12,17 @@ pub struct AudioSource {
 impl AudioSource {
     /// Load audio from file (WAV, OGG, MP3, FLAC).
     pub fn load(path: &str) -> Result<Self, String> {
-        let data = std::fs::read(path)
-            .map_err(|e| format!("Failed to load audio: {}", e))?;
-        Ok(Self { data: Arc::new(data) })
+        let data = std::fs::read(path).map_err(|e| format!("Failed to load audio: {}", e))?;
+        Ok(Self {
+            data: Arc::new(data),
+        })
     }
 
     /// Load audio from bytes.
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self { data: Arc::new(bytes) }
+        Self {
+            data: Arc::new(bytes),
+        }
     }
 }
 
