@@ -54,7 +54,8 @@ fn raycast_exclude_player(
         if let Some((hit_point, distance, normal)) =
             collider.raycast(origin, direction, transform.position)
         {
-            if distance <= max_distance && distance > 0.001
+            if distance <= max_distance
+                && distance > 0.001
                 && (closest.is_none() || distance < closest.unwrap().2)
             {
                 closest = Some((entity, hit_point, distance, normal));
