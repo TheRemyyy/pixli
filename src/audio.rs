@@ -99,7 +99,7 @@ impl Audio {
         }
     }
 
-    /// Play a sound effect. Returns a handle to control playback; if no device or decode fails, returns a no-op handle.
+    /// Play a sound effect. Returns a no-op handle; playback continues in background (one-shot).
     pub fn play(&self, source: &AudioSource) -> Sound {
         self.play_volume(source, 1.0)
     }
@@ -128,9 +128,8 @@ impl Audio {
         };
         let vol = (volume * self.sfx_volume * self.master_volume).clamp(0.0, 1.0);
         sink.append(decoder.convert_samples::<f32>().amplify(vol));
-        Sound {
-            sink: Some(Arc::new(sink)),
-        }
+        sink.detach(); // keep playing after caller drops Sound
+        Sound { sink: None }
     }
 
     /// Play music (looping).

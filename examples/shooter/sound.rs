@@ -26,11 +26,11 @@ pub fn shoot_wav_bytes() -> Vec<u8> {
     out.extend_from_slice(b"data");
     out.extend_from_slice(&DATA_SIZE.to_le_bytes());
 
-    // Short burst with quick decay (click)
+    // Short burst with quick decay (loud click so it's clearly audible)
     for i in 0..NUM_SAMPLES {
         let t = i as f32 / SAMPLE_RATE as f32;
         let amp = (1.0 - t / DURATION_SEC).max(0.0);
-        let sample = (amp * 8000.0 * (t * 400.0 * std::f32::consts::TAU).sin()) as i16;
+        let sample = (amp * 18000.0 * (t * 400.0 * std::f32::consts::TAU).sin()) as i16;
         out.extend_from_slice(&sample.to_le_bytes());
     }
     out

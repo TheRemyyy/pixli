@@ -181,7 +181,7 @@ pub fn shooting_system(state: &mut GameState) {
     // Play shoot SFX (if singleton with ShootSound exists).
     if let Some(e) = state.world.query::<(&ShootSound,)>().iter().next() {
         if let Some(sound) = state.world.get::<ShootSound>(e) {
-            state.audio.play_volume(&sound.0, 0.35);
+            state.audio.play_volume(&sound.0, 0.8);
         }
     }
 
