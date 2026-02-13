@@ -54,10 +54,10 @@ fn raycast_exclude_player(
         if let Some((hit_point, distance, normal)) =
             collider.raycast(origin, direction, transform.position)
         {
-            if distance <= max_distance && distance > 0.001 {
-                if closest.is_none() || distance < closest.unwrap().2 {
-                    closest = Some((entity, hit_point, distance, normal));
-                }
+            if distance <= max_distance && distance > 0.001
+                && (closest.is_none() || distance < closest.unwrap().2)
+            {
+                closest = Some((entity, hit_point, distance, normal));
             }
         }
     }
@@ -235,7 +235,7 @@ pub fn tracer_system(state: &mut GameState) {
         .world
         .query::<(&Tracer,)>()
         .iter()
-        .filter(|e| state.world.get::<Tracer>(*e).map_or(false, |t| t.0 <= 0.0))
+        .filter(|e| state.world.get::<Tracer>(*e).is_some_and(|t| t.0 <= 0.0))
         .collect();
     for entity in to_despawn {
         state.world.despawn(entity);
