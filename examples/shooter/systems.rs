@@ -54,9 +54,8 @@ fn raycast_exclude_player(
         if let Some((hit_point, distance, normal)) =
             collider.raycast(origin, direction, transform.position)
         {
-            if distance <= max_distance
-                && distance > 0.001
-                && (closest.is_none() || distance < closest.unwrap().2)
+            let closer = closest.as_ref().map_or(true, |c| distance < c.2);
+            if distance <= max_distance && distance > 0.001 && closer
             {
                 closest = Some((entity, hit_point, distance, normal));
             }
@@ -80,9 +79,9 @@ pub fn player_controller_system(state: &mut GameState) {
         None => return,
     };
 
-    let (velocity_y, is_grounded) = {
-        let c = state.world.get::<PlayerController>(player_entity).unwrap();
-        (c.velocity_y, c.is_grounded)
+    let (velocity_y, is_grounded) = match state.world.get::<PlayerController>(player_entity) {
+        Some(c) => (c.velocity_y, c.is_grounded),
+        None => return,
     };
 
     if state.input.is_mouse_captured() {
@@ -112,11 +111,10 @@ pub fn player_controller_system(state: &mut GameState) {
         rb.velocity.y = new_velocity_y;
     }
 
-    let pos = state
-        .world
-        .get::<Transform>(player_entity)
-        .unwrap()
-        .position;
+    let pos = match state.world.get::<Transform>(player_entity) {
+        Some(t) => t.position,
+        None => return,
+    };
     state.renderer.camera.position = pos;
 
     if pos.y <= CAMERA_HEIGHT {
@@ -138,10 +136,10 @@ pub fn player_controller_system(state: &mut GameState) {
 /// Shooting: LMB, raycast, Health damage, enemy death.
 pub fn shooting_system(state: &mut GameState) {
     let player_entity = match state.world.query::<(&PlayerEntity,)>().iter().next() {
-        Some(e) => {
-            let pe = state.world.get::<PlayerEntity>(e).unwrap();
-            pe.0
-        }
+        Some(e) => match state.world.get::<PlayerEntity>(e) {
+            Some(pe) => pe.0,
+            None => return,
+        },
         None => return,
     };
 
@@ -264,7 +262,11 @@ pub fn viewmodel_system(state: &mut GameState) {
         .iter()
         .collect();
     for entity in viewmodel_entities {
-        let recoil = state.world.get::<RecoilAmount>(entity).unwrap().0;
+        let recoil = state
+            .world
+            .get::<RecoilAmount>(entity)
+            .map(|ra| ra.0)
+            .unwrap_or(0.0);
         let target_pos = base_pos + cam.forward() * (-recoil);
 
         if let Some(t) = state.world.get_mut::<Transform>(entity) {
@@ -287,7 +289,11 @@ pub fn viewmodel_system(state: &mut GameState) {
         .iter()
         .collect();
     for entity in muzzle_entities {
-        let mf = state.world.get::<MuzzleFlash>(entity).unwrap().0;
+        let mf = state
+            .world
+            .get::<MuzzleFlash>(entity)
+            .map(|mf_comp| mf_comp.0)
+            .unwrap_or(0.0);
         if let Some(t) = state.world.get_mut::<Transform>(entity) {
             t.position = muzzle_pos;
             t.rotation = target_rot;
