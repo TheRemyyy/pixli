@@ -30,7 +30,7 @@ pub struct GameState<'a> {
     pub time: &'a Time,
     pub renderer: &'a mut Renderer,
     pub physics: &'a mut Physics,
-    pub audio: &'a Audio,
+    pub audio: &'a mut Audio,
     pub window: &'a EngineWindow,
 }
 
@@ -101,7 +101,7 @@ impl App {
 
     /// Run the application. Returns `Err` if initialization fails (e.g. no GPU, window creation).
     pub fn run(self) -> Result<()> {
-        env_logger::init();
+        let _ = env_logger::try_init();
 
         let event_loop = EventLoop::new().map_err(|e| Error::EventLoop(e.to_string()))?;
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -303,12 +303,33 @@ impl ApplicationHandler for AppState {
             let queue = Arc::new(queue);
 
             let surface_caps = surface.get_capabilities(&adapter);
-            let surface_format = surface_caps
+            let surface_format = match surface_caps
                 .formats
                 .iter()
                 .find(|f| f.is_srgb())
                 .copied()
-                .unwrap_or(surface_caps.formats[0]);
+                .or_else(|| surface_caps.formats.first().copied())
+            {
+                Some(f) => f,
+                None => {
+                    self.set_init_error_and_exit(
+                        event_loop,
+                        Error::Surface("no supported surface format".into()),
+                    );
+                    return;
+                }
+            };
+
+            let alpha_mode = match surface_caps.alpha_modes.first() {
+                Some(&a) => a,
+                None => {
+                    self.set_init_error_and_exit(
+                        event_loop,
+                        Error::Surface("no supported alpha mode".into()),
+                    );
+                    return;
+                }
+            };
 
             let present_mode = if self.config.vsync {
                 wgpu::PresentMode::AutoVsync
@@ -323,7 +344,7 @@ impl ApplicationHandler for AppState {
                 width: size.width.max(1),
                 height: size.height.max(1),
                 present_mode,
-                alpha_mode: surface_caps.alpha_modes[0],
+                alpha_mode,
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
             };
@@ -455,7 +476,7 @@ impl ApplicationHandler for AppState {
                         time: &self.time,
                         renderer: &mut self.renderer,
                         physics: &mut self.physics,
-                        audio: &self.audio,
+                        audio: &mut self.audio,
                         window: &self.engine_window,
                     };
 

@@ -96,33 +96,33 @@ impl Physics {
             }
         }
 
-        // Collision detection (O(n²), simple pairwise approach).
+        // Collision detection (O(n²), simple pairwise approach). Use refs only to compute
+        // collision result, then drop them before get_mut for resolution (no Collider clone).
         for i in 0..entities.len() {
             for j in (i + 1)..entities.len() {
                 let entity_a = entities[i];
                 let entity_b = entities[j];
 
-                let (pos_a, collider_a) = {
-                    let t = world.get::<crate::math::Transform>(entity_a);
-                    let c = world.get::<Collider>(entity_a);
-                    match (t, c) {
-                        (Some(t), Some(c)) => (t.position, c.clone()),
-                        _ => continue,
-                    }
-                };
+                let pos_a = world
+                    .get::<crate::math::Transform>(entity_a)
+                    .map(|t| t.position);
+                let pos_b = world
+                    .get::<crate::math::Transform>(entity_b)
+                    .map(|t| t.position);
+                let collision_result =
+                    match (
+                        pos_a,
+                        pos_b,
+                        world.get::<Collider>(entity_a),
+                        world.get::<Collider>(entity_b),
+                    ) {
+                        (Some(pa), Some(pb), Some(ca), Some(cb)) => {
+                            ca.collision_info(cb, pa, pb)
+                        }
+                        _ => None,
+                    };
 
-                let (pos_b, collider_b) = {
-                    let t = world.get::<crate::math::Transform>(entity_b);
-                    let c = world.get::<Collider>(entity_b);
-                    match (t, c) {
-                        (Some(t), Some(c)) => (t.position, c.clone()),
-                        _ => continue,
-                    }
-                };
-
-                if let Some((point, normal, penetration)) =
-                    collider_a.collision_info(&collider_b, pos_a, pos_b)
-                {
+                if let Some((point, normal, penetration)) = collision_result {
                     // Normal points from B toward A (direction to push A out of collision).
                     self.collision_events.push(CollisionEvent {
                         entity_a,
@@ -133,7 +133,15 @@ impl Physics {
                     });
 
                     // Triggers: no physical response (walk through). Game code can still react via collision_events.
-                    if collider_a.is_trigger || collider_b.is_trigger {
+                    let trigger_a = world
+                        .get::<Collider>(entity_a)
+                        .map(|c| c.is_trigger)
+                        .unwrap_or(false);
+                    let trigger_b = world
+                        .get::<Collider>(entity_b)
+                        .map(|c| c.is_trigger)
+                        .unwrap_or(false);
+                    if trigger_a || trigger_b {
                         continue;
                     }
 

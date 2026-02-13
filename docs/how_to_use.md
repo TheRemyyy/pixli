@@ -224,8 +224,8 @@ Import from prelude: `Vec2`, `Vec3`, `Vec4`, `Mat4`, `Quat`, `Transform`, `Color
 - **`AudioSource::load(path)`** — Load from file (WAV, OGG, MP3, FLAC).  
 - **`state.audio.play(&source)`** — Returns **`Sound`** (play, stop, set_volume).  
 - **`state.audio.play_volume(&source, volume)`**, **`play_music(&source)`** (looping).  
-- **`state.audio.set_master_volume(v)`**, **set_music_volume**, **set_sfx_volume**.  
-- Note: playback implementation may be placeholder; API is stable.
+- **`state.audio.set_master_volume(v)`**, **set_music_volume**, **set_sfx_volume** (systems receive `&mut Audio` so volume can be changed at runtime).  
+- Playback is implemented via rodio; one-shot SFX use detach so they keep playing after the handle is dropped.
 
 ---
 

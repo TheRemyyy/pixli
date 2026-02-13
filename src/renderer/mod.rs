@@ -1,11 +1,15 @@
 //! Renderer: meshes, materials, textures, camera, lights.
 
+mod bloom;
 mod camera;
 mod constants;
 mod init;
 mod light;
 mod material;
 mod mesh;
+mod pass_common;
+mod post;
+mod ssao;
 mod texture;
 mod types;
 
@@ -924,7 +928,7 @@ impl Renderer {
         );
 
         // Bloom: extract bright, blur horizontal, blur vertical.
-        run_bloom(
+        bloom::run_bloom(
             &mut encoder,
             queue,
             self.size,
@@ -939,7 +943,7 @@ impl Renderer {
         );
 
         // SSAO pass and blur.
-        run_ssao_pass(
+        ssao::run_ssao_pass(
             &mut encoder,
             queue,
             self.size,
@@ -958,7 +962,7 @@ impl Renderer {
         );
 
         // Post pass: scene, bloom, SSAO composite, tone mapping to swapchain.
-        run_post_pass(
+        post::run_post_pass(
             &mut encoder,
             view,
             post_pipeline,
@@ -1178,392 +1182,6 @@ fn run_shadow_pass(
             occlusion_query_set: None,
         });
     }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct BlurParams {
-    texel_size: [f32; 2],
-    is_horizontal: u32,
-    _pad: u32,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_bloom(
-    encoder: &mut wgpu::CommandEncoder,
-    queue: &wgpu::Queue,
-    size: (u32, u32),
-    enable_bloom: bool,
-    extract_pipe: Option<&wgpu::RenderPipeline>,
-    blur_pipe: Option<&wgpu::RenderPipeline>,
-    bind_groups: Option<&(wgpu::BindGroup, wgpu::BindGroup, wgpu::BindGroup)>,
-    params_buf: Option<&wgpu::Buffer>,
-    bloom_a: Option<&wgpu::Texture>,
-    bloom_b: Option<&wgpu::Texture>,
-    pvb: Option<&wgpu::Buffer>,
-) {
-    if enable_bloom {
-        if let (
-            Some(extract_pipe),
-            Some(blur_pipe),
-            Some((bg_extract, bg_blur_a, bg_blur_b)),
-            Some(params_buf),
-            Some(bloom_a),
-            Some(bloom_b),
-            Some(pvb),
-        ) = (
-            extract_pipe,
-            blur_pipe,
-            bind_groups,
-            params_buf,
-            bloom_a,
-            bloom_b,
-            pvb,
-        ) {
-            let (w, _h) = size;
-            let texel = [1.0 / w as f32, 1.0 / size.1 as f32];
-            let bloom_a_view = bloom_a.create_view(&Default::default());
-            let bloom_b_view = bloom_b.create_view(&Default::default());
-
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Bloom Extract"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &bloom_a_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(extract_pipe);
-            pass.set_bind_group(0, bg_extract, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 1,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Bloom Blur H"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &bloom_b_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, bg_blur_a, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 0,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Bloom Blur V"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &bloom_a_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, bg_blur_b, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-        }
-    } else if let Some(bloom_a) = bloom_a {
-        let bloom_a_view = bloom_a.create_view(&Default::default());
-        let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Bloom Clear"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &bloom_a_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct SSAOParams {
-    proj_inv: [[f32; 4]; 4],
-    proj: [[f32; 4]; 4],
-    view_inv: [[f32; 4]; 4],
-    sample_radius: f32,
-    bias: f32,
-    intensity: f32,
-    max_dist: f32,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_ssao_pass(
-    encoder: &mut wgpu::CommandEncoder,
-    queue: &wgpu::Queue,
-    size: (u32, u32),
-    proj: Mat4,
-    view: Mat4,
-    enable_ssao: bool,
-    ssao_pipe: Option<&wgpu::RenderPipeline>,
-    ssao_params_buf: Option<&wgpu::Buffer>,
-    ssao_bind_groups: Option<&(wgpu::BindGroup, wgpu::BindGroup, wgpu::BindGroup)>,
-    blur_pipe: Option<&wgpu::RenderPipeline>,
-    blur_params_buf: Option<&wgpu::Buffer>,
-    ssao_texture_view: Option<&wgpu::TextureView>,
-    ssao_blur_view: Option<&wgpu::TextureView>,
-    pvb: Option<&wgpu::Buffer>,
-    ssao_texture: Option<&wgpu::Texture>,
-) {
-    if enable_ssao {
-        if let (
-            Some(ssao_pipe),
-            Some(ssao_params_buf),
-            Some((ssao_bg, ssao_blur_in, ssao_blur_out)),
-            Some(blur_pipe),
-            Some(blur_params_buf),
-            Some(ssao_view),
-            Some(ssao_blur_view),
-            Some(pvb),
-        ) = (
-            ssao_pipe,
-            ssao_params_buf,
-            ssao_bind_groups,
-            blur_pipe,
-            blur_params_buf,
-            ssao_texture_view,
-            ssao_blur_view,
-            pvb,
-        ) {
-            let (w, h) = size;
-            let proj_inv = proj.inverse();
-            let view_inv = view.inverse();
-            let ssao_params = SSAOParams {
-                proj_inv: proj_inv.to_cols_array(),
-                proj: proj.to_cols_array(),
-                view_inv: view_inv.to_cols_array(),
-                sample_radius: 1.0,
-                bias: 0.025,
-                intensity: 0.8,
-                max_dist: 100.0,
-            };
-            queue.write_buffer(ssao_params_buf, 0, bytemuck::bytes_of(&ssao_params));
-            let texel = [1.0 / w as f32, 1.0 / h as f32];
-
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(ssao_pipe);
-            pass.set_bind_group(0, ssao_bg, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 1,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur H"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_blur_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_in, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 0,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur V"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_out, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 1,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur H2"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_blur_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_in, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 0,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur V2"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_out, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-        }
-    } else if let Some(ssao_tex) = ssao_texture {
-        let ssao_view = ssao_tex.create_view(&Default::default());
-        let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("SSAO Clear"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &ssao_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-    }
-}
-
-fn run_post_pass(
-    encoder: &mut wgpu::CommandEncoder,
-    view: &wgpu::TextureView,
-    post_pipeline: &wgpu::RenderPipeline,
-    post_bind_group: &wgpu::BindGroup,
-    post_vertex_buffer: &wgpu::Buffer,
-) {
-    let mut post_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("Post Pass"),
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color {
-                    r: 0.0,
-                    g: 0.0,
-                    b: 0.0,
-                    a: 1.0,
-                }),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        depth_stencil_attachment: None,
-        timestamp_writes: None,
-        occlusion_query_set: None,
-    });
-    post_pass.set_pipeline(post_pipeline);
-    post_pass.set_bind_group(0, post_bind_group, &[]);
-    post_pass.set_vertex_buffer(0, post_vertex_buffer.slice(..));
-    post_pass.draw(0..3, 0..1);
 }
 
 #[allow(clippy::too_many_arguments)]

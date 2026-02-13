@@ -78,7 +78,21 @@ impl Collider {
             (ColliderShape::Sphere { radius }, ColliderShape::Box { half_extents }) => {
                 Self::aabb_sphere(pos_b, *half_extents, pos_a, *radius)
             }
-            _ => false, // TODO: Capsule collisions
+            (ColliderShape::Capsule { radius: ra, height: ha }, ColliderShape::Sphere { radius: rb }) => {
+                Self::capsule_sphere(pos_a, *ra, *ha, pos_b, *rb)
+            }
+            (ColliderShape::Sphere { radius: rb }, ColliderShape::Capsule { radius: ra, height: ha }) => {
+                Self::capsule_sphere(pos_b, *ra, *ha, pos_a, *rb)
+            }
+            (ColliderShape::Capsule { radius: ra, height: ha }, ColliderShape::Box { half_extents }) => {
+                Self::capsule_aabb(pos_a, *ra, *ha, pos_b, *half_extents)
+            }
+            (ColliderShape::Box { half_extents }, ColliderShape::Capsule { radius: ra, height: ha }) => {
+                Self::capsule_aabb(pos_b, *ra, *ha, pos_a, *half_extents)
+            }
+            (ColliderShape::Capsule { radius: ra, height: ha }, ColliderShape::Capsule { radius: rb, height: hb }) => {
+                Self::capsule_capsule(pos_a, *ra, *ha, pos_b, *rb, *hb)
+            }
         }
     }
 
@@ -107,7 +121,23 @@ impl Collider {
                 Self::aabb_sphere_info(pos_b, *half_extents, pos_a, *radius)
                     .map(|(p, n, d)| (p, -n, d))
             }
-            _ => None,
+            (ColliderShape::Capsule { radius: ra, height: ha }, ColliderShape::Sphere { radius: rb }) => {
+                Self::capsule_sphere_info(pos_a, *ra, *ha, pos_b, *rb)
+            }
+            (ColliderShape::Sphere { radius: rb }, ColliderShape::Capsule { radius: ra, height: ha }) => {
+                Self::capsule_sphere_info(pos_b, *ra, *ha, pos_a, *rb)
+                    .map(|(p, n, d)| (p, -n, d))
+            }
+            (ColliderShape::Capsule { radius: ra, height: ha }, ColliderShape::Box { half_extents }) => {
+                Self::capsule_aabb_info(pos_a, *ra, *ha, pos_b, *half_extents)
+            }
+            (ColliderShape::Box { half_extents }, ColliderShape::Capsule { radius: ra, height: ha }) => {
+                Self::capsule_aabb_info(pos_b, *ra, *ha, pos_a, *half_extents)
+                    .map(|(p, n, d)| (p, -n, d))
+            }
+            (ColliderShape::Capsule { radius: ra, height: ha }, ColliderShape::Capsule { radius: rb, height: hb }) => {
+                Self::capsule_capsule_info(pos_a, *ra, *ha, pos_b, *rb, *hb)
+            }
         }
     }
 
@@ -246,6 +276,93 @@ impl Collider {
         let penetration = radius - dist;
 
         Some((closest, normal, penetration))
+    }
+
+    fn capsule_segment(pos: Vec3, radius: f32, height: f32) -> (Vec3, Vec3) {
+        let half_axis = (height * 0.5 - radius).max(0.0);
+        (pos - Vec3::new(0.0, half_axis, 0.0), pos + Vec3::new(0.0, half_axis, 0.0))
+    }
+
+    fn closest_point_segment_to_point(seg_low: Vec3, seg_high: Vec3, p: Vec3) -> Vec3 {
+        let ab = seg_high - seg_low;
+        let ap = p - seg_low;
+        let ab_sq = ab.length_squared();
+        let t = if ab_sq > 1e-12 { (ap.dot(ab) / ab_sq).clamp(0.0, 1.0) } else { 0.0 };
+        seg_low + ab * t
+    }
+
+    fn capsule_sphere(cap_pos: Vec3, cap_radius: f32, cap_height: f32, sphere_pos: Vec3, sphere_radius: f32) -> bool {
+        let (low, high) = Self::capsule_segment(cap_pos, cap_radius, cap_height);
+        let closest = Self::closest_point_segment_to_point(low, high, sphere_pos);
+        (sphere_pos - closest).length_squared() <= (cap_radius + sphere_radius).powi(2)
+    }
+
+    fn capsule_sphere_info(cap_pos: Vec3, cap_radius: f32, cap_height: f32, sphere_pos: Vec3, sphere_radius: f32) -> Option<(Vec3, Vec3, f32)> {
+        let (low, high) = Self::capsule_segment(cap_pos, cap_radius, cap_height);
+        let closest = Self::closest_point_segment_to_point(low, high, sphere_pos);
+        let diff = sphere_pos - closest;
+        let dist = diff.length();
+        let sum = cap_radius + sphere_radius;
+        if dist >= sum {
+            return None;
+        }
+        let normal = if dist > 0.0001 { diff / dist } else { Vec3::UP };
+        let penetration = sum - dist;
+        Some((closest + normal * cap_radius, normal, penetration))
+    }
+
+    fn capsule_aabb(cap_pos: Vec3, cap_radius: f32, cap_height: f32, box_pos: Vec3, half_extents: Vec3) -> bool {
+        let (low, high) = Self::capsule_segment(cap_pos, cap_radius, cap_height);
+        let closest_on_seg = Self::closest_point_segment_to_point(low, high, box_pos);
+        Self::aabb_sphere(box_pos, half_extents, closest_on_seg, cap_radius)
+    }
+
+    fn capsule_aabb_info(cap_pos: Vec3, cap_radius: f32, cap_height: f32, box_pos: Vec3, half_extents: Vec3) -> Option<(Vec3, Vec3, f32)> {
+        let (low, high) = Self::capsule_segment(cap_pos, cap_radius, cap_height);
+        let closest_on_seg = Self::closest_point_segment_to_point(low, high, box_pos);
+        Self::aabb_sphere_info(box_pos, half_extents, closest_on_seg, cap_radius)
+    }
+
+    fn closest_point_segment_to_segment(a1: Vec3, a2: Vec3, b1: Vec3, b2: Vec3) -> (Vec3, Vec3) {
+        let u = a2 - a1;
+        let v = b2 - b1;
+        let w = a1 - b1;
+        let a = u.dot(u);
+        let b = u.dot(v);
+        let c = v.dot(v);
+        let d = u.dot(w);
+        let e = v.dot(w);
+        let denom = a * c - b * b;
+        let (s, t) = if denom.abs() < 1e-12 {
+            (0.0_f32.clamp(-d / a, 1.0), 0.0)
+        } else {
+            let s = (b * e - c * d) / denom;
+            let t = (a * e - b * d) / denom;
+            (s.clamp(0.0, 1.0), t.clamp(0.0, 1.0))
+        };
+        (a1 + u * s, b1 + v * t)
+    }
+
+    fn capsule_capsule(pos_a: Vec3, radius_a: f32, height_a: f32, pos_b: Vec3, radius_b: f32, height_b: f32) -> bool {
+        let (low_a, high_a) = Self::capsule_segment(pos_a, radius_a, height_a);
+        let (low_b, high_b) = Self::capsule_segment(pos_b, radius_b, height_b);
+        let (closest_a, closest_b) = Self::closest_point_segment_to_segment(low_a, high_a, low_b, high_b);
+        (closest_b - closest_a).length_squared() <= (radius_a + radius_b).powi(2)
+    }
+
+    fn capsule_capsule_info(pos_a: Vec3, radius_a: f32, height_a: f32, pos_b: Vec3, radius_b: f32, height_b: f32) -> Option<(Vec3, Vec3, f32)> {
+        let (low_a, high_a) = Self::capsule_segment(pos_a, radius_a, height_a);
+        let (low_b, high_b) = Self::capsule_segment(pos_b, radius_b, height_b);
+        let (closest_a, closest_b) = Self::closest_point_segment_to_segment(low_a, high_a, low_b, high_b);
+        let diff = closest_b - closest_a;
+        let dist = diff.length();
+        let sum = radius_a + radius_b;
+        if dist >= sum {
+            return None;
+        }
+        let normal = if dist > 0.0001 { diff / dist } else { Vec3::UP };
+        let penetration = sum - dist;
+        Some(((closest_a + closest_b) * 0.5, normal, penetration))
     }
 
     fn ray_sphere(

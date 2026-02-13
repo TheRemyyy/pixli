@@ -69,11 +69,16 @@ struct EntitySlot {
 }
 
 /// World: the ECS container.
+///
+/// After [`clear()`](Self::clear), all previously obtained [`Entity`] handles are invalid
+/// and must not be used; new entities get a new generation so old handles never match.
 pub struct World {
     entities: Vec<EntitySlot>,
     free_indices: Vec<u32>,
     components: HashMap<TypeId, ComponentStorage>,
     next_id: u32,
+    /// Bumped on clear(); new entities use this so pre-clear handles stay invalid.
+    world_generation: u32,
 }
 
 impl World {
@@ -83,6 +88,7 @@ impl World {
             free_indices: Vec::new(),
             components: HashMap::new(),
             next_id: 0,
+            world_generation: 0,
         }
     }
 
@@ -96,11 +102,12 @@ impl World {
         } else {
             let id = self.next_id;
             self.next_id += 1;
+            let gen = self.world_generation;
             self.entities.push(EntitySlot {
-                generation: 0,
+                generation: gen,
                 alive: true,
             });
-            (id, 0)
+            (id, gen)
         };
 
         EntityBuilder {
@@ -198,14 +205,13 @@ impl World {
         Query::new(self)
     }
 
-    /// Get all alive entities.
-    pub fn entities(&self) -> Vec<Entity> {
+    /// Iterate over all alive entities (no allocation).
+    pub fn entities(&self) -> impl Iterator<Item = Entity> + '_ {
         self.entities
             .iter()
             .enumerate()
             .filter(|(_, slot)| slot.alive)
             .map(|(id, slot)| Entity::new(id as u32, slot.generation))
-            .collect()
     }
 
     /// Get entity count.
@@ -213,12 +219,14 @@ impl World {
         self.entities.iter().filter(|s| s.alive).count()
     }
 
-    /// Clear all entities.
+    /// Clear all entities. Any [`Entity`] handles obtained before this call are invalid
+    /// and must not be used; new spawns get a new generation so old handles never match.
     pub fn clear(&mut self) {
         self.entities.clear();
         self.free_indices.clear();
         self.components.clear();
         self.next_id = 0;
+        self.world_generation = self.world_generation.wrapping_add(1);
     }
 
     // Internal: get storage for type.
@@ -384,6 +392,55 @@ impl<A: Component, B: Component, C: Component> QueryTuple for (&A, &B, &C) {
         match (storage_a, storage_b, storage_c) {
             (Some(a), Some(b), Some(c)) => Box::new(a.entity_ids().filter_map(move |id| {
                 if !b.contains(id) || !c.contains(id) {
+                    return None;
+                }
+                let slot = world.entities.get(id as usize)?;
+                if slot.alive {
+                    Some(Entity::new(id, slot.generation))
+                } else {
+                    None
+                }
+            })),
+            _ => Box::new(std::iter::empty()),
+        }
+    }
+}
+
+// Implement for four components.
+impl<A: Component, B: Component, C: Component, D: Component> QueryTuple
+    for (&A, &B, &C, &D)
+{
+    fn count(world: &World) -> usize {
+        let storage_a = world.get_storage::<A>();
+        let storage_b = world.get_storage::<B>();
+        let storage_c = world.get_storage::<C>();
+        let storage_d = world.get_storage::<D>();
+
+        match (storage_a, storage_b, storage_c, storage_d) {
+            (Some(a), Some(b), Some(c), Some(d)) => a
+                .entity_ids()
+                .filter(|id| b.contains(*id) && c.contains(*id) && d.contains(*id))
+                .filter(|id| {
+                    world
+                        .entities
+                        .get(*id as usize)
+                        .map(|s| s.alive)
+                        .unwrap_or(false)
+                })
+                .count(),
+            _ => 0,
+        }
+    }
+
+    fn iter(world: &World) -> Box<dyn Iterator<Item = Entity> + '_> {
+        let storage_a = world.get_storage::<A>();
+        let storage_b = world.get_storage::<B>();
+        let storage_c = world.get_storage::<C>();
+        let storage_d = world.get_storage::<D>();
+
+        match (storage_a, storage_b, storage_c, storage_d) {
+            (Some(a), Some(b), Some(c), Some(d)) => Box::new(a.entity_ids().filter_map(move |id| {
+                if !b.contains(id) || !c.contains(id) || !d.contains(id) {
                     return None;
                 }
                 let slot = world.entities.get(id as usize)?;
