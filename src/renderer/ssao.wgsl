@@ -1,5 +1,4 @@
 // SSAO – Screen Space Ambient Occlusion
-// Jemné stíny v rozích a při dotyku objektů
 
 @group(0) @binding(0)
 var depth_texture: texture_depth_2d;
