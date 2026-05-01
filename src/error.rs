@@ -15,6 +15,8 @@ pub enum Error {
     Window(String),
     #[error("no compatible GPU adapter found")]
     NoAdapter,
+    #[error("unsupported GPU backend: {0}; Pixli requires Vulkan")]
+    UnsupportedBackend(String),
     #[error("GPU device: {0}")]
     DeviceRequest(String),
     #[error("surface: {0}")]

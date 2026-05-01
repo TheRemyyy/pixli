@@ -2,15 +2,12 @@
 
 /// Native graphics backends supported by this build.
 pub fn graphics_backends() -> wgpu::Backends {
-    #[cfg(target_os = "linux")]
-    {
-        wgpu::Backends::VULKAN | wgpu::Backends::GL
-    }
+    wgpu::Backends::VULKAN
+}
 
-    #[cfg(not(target_os = "linux"))]
-    {
-        wgpu::Backends::PRIMARY | wgpu::Backends::GL
-    }
+/// Return true only for the backend Pixli supports at runtime.
+pub fn is_supported_backend(backend: wgpu::Backend) -> bool {
+    backend == wgpu::Backend::Vulkan
 }
 
 /// Select a present mode that is actually supported by the created surface.
@@ -47,7 +44,20 @@ pub fn select_present_mode(
 
 #[cfg(test)]
 mod tests {
-    use super::select_present_mode;
+    use super::{graphics_backends, is_supported_backend, select_present_mode};
+
+    #[test]
+    fn graphics_backends_are_vulkan_only() {
+        assert_eq!(graphics_backends(), wgpu::Backends::VULKAN);
+    }
+
+    #[test]
+    fn supported_backend_is_vulkan_only() {
+        assert!(is_supported_backend(wgpu::Backend::Vulkan));
+        assert!(!is_supported_backend(wgpu::Backend::Gl));
+        assert!(!is_supported_backend(wgpu::Backend::Dx12));
+        assert!(!is_supported_backend(wgpu::Backend::Metal));
+    }
 
     #[test]
     fn select_present_mode_falls_back_to_fifo_when_immediate_is_missing() {

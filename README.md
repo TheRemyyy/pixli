@@ -17,22 +17,23 @@
 
 ## <a id="overview"></a>Overview
 
-Pixli is a 3D game engine built in Rust with **wgpu** for cross-platform graphics (Vulkan, OpenGL fallback, DirectX 12, Metal). It provides an entity-component system (ECS), PBR lighting with shadows, SSAO, bloom, unlit/lit pipelines, physics (AABB/sphere colliders, rigid bodies), and optional audio via rodio.
+Pixli is a 3D game engine built in Rust with **wgpu** on a strict Vulkan backend. It provides an entity-component system (ECS), PBR lighting with shadows, SSAO, bloom, unlit/lit pipelines, physics (AABB/sphere colliders, rigid bodies), and optional audio via rodio.
 
 ### Key Features
 
-- **Rendering** — Lit and unlit pipelines, directional shadows, SSAO, bloom, MSAA, sky gradient, fog
+- **Rendering** — Vulkan-only lit and unlit pipelines, directional shadows, SSAO, bloom, MSAA, sky gradient, fog
 - **ECS** — Entity/component world, queries, spawn/despawn
 - **Physics** — Box, sphere, and capsule colliders, rigid bodies, collision events, raycasting
 - **Audio** — Sound loading and playback (rodio)
 - **Input** — Keyboard, mouse, cursor capture
 - **Production-ready** — `Result`-based API, no unwraps on user paths, GPU/surface loss handling (Lost, Outdated, Timeout, OutOfMemory)
+- **Profiling** — Built-in CPU frame profiler for physics, systems, surface acquire, render, present, and total frame time
 
 ## <a id="requirements"></a>Requirements
 
 - **Rust** 1.75 or later
-- **GPU** with Vulkan 1.2, OpenGL fallback on Linux, DirectX 12, or Metal support
-- **Windows / Linux / macOS** (wgpu backends)
+- **GPU** with Vulkan 1.2 support
+- **Windows / Linux / macOS** with a Vulkan-capable driver; non-Vulkan wgpu backends are rejected at startup.
 - **Linux desktop**: X11 and Wayland are enabled in the build; GNOME, KDE Plasma, wlroots compositors, and XWayland sessions use native winit integration.
 - **Linux audio feature**: install ALSA development files first, for example `sudo apt install libasound2-dev pkg-config`, then build with `--features audio`.
 
@@ -98,6 +99,12 @@ With audio enabled:
 
 ```bash
 cargo run --release --features audio --example shooter
+```
+
+With the built-in profiler enabled:
+
+```bash
+PIXLI_PROFILE=1 PIXLI_PROFILE_INTERVAL=60 cargo run --release
 ```
 
 Controls: WASD move, mouse aim, LMB fire, Space jump, ESC release mouse or quit.

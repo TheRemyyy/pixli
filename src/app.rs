@@ -20,9 +20,10 @@ use crate::error::{Error, Result};
 use crate::input::{Input, MouseButton};
 use crate::physics::Physics;
 use crate::platform::{
-    apply_platform_window_attributes, capture_cursor, graphics_backends, release_cursor,
-    select_present_mode,
+    apply_platform_window_attributes, capture_cursor, graphics_backends, is_supported_backend,
+    release_cursor, select_present_mode,
 };
+use crate::profiler::{FrameProfile, Profiler};
 use crate::renderer::Renderer;
 use crate::time::Time;
 use crate::window::{Window as EngineWindow, WindowConfig};
@@ -169,6 +170,7 @@ struct AppState {
     physics: Physics,
     audio: Audio,
     engine_window: EngineWindow,
+    profiler: Profiler,
 
     // GPU state
     window: Option<Arc<Window>>,
@@ -206,6 +208,7 @@ impl AppState {
             physics: Physics::new(),
             audio: Audio::new(),
             engine_window: EngineWindow::default(),
+            profiler: Profiler::from_env(),
             window: None,
             surface: None,
             device: None,
@@ -315,7 +318,15 @@ impl ApplicationHandler for AppState {
                     }
                 };
 
-            log::info!("Using adapter: {:?}", adapter.get_info());
+            let adapter_info = adapter.get_info();
+            if !is_supported_backend(adapter_info.backend) {
+                self.set_init_error_and_exit(
+                    event_loop,
+                    Error::UnsupportedBackend(adapter_info.backend.to_str().to_string()),
+                );
+                return;
+            }
+            log::info!("Using Vulkan adapter: {:?}", adapter_info);
 
             let (device, queue) = match pollster::block_on(adapter.request_device(
                 &wgpu::DeviceDescriptor {
@@ -490,6 +501,8 @@ impl ApplicationHandler for AppState {
             }
 
             WindowEvent::RedrawRequested => {
+                let frame_start = Instant::now();
+
                 // Calculate delta time
                 let now = Instant::now();
                 let delta = (now - self.last_frame).as_secs_f32();
@@ -497,9 +510,12 @@ impl ApplicationHandler for AppState {
                 self.time.update(delta);
 
                 // Update physics first (use real delta so speed is FPS-independent)
+                let physics_start = Instant::now();
                 self.physics.update(&mut self.world, self.time.delta());
+                let physics_duration = physics_start.elapsed();
 
                 // Run systems (input, sync camera from player, collectibles, etc.)
+                let systems_start = Instant::now();
                 {
                     let mut state = GameState {
                         world: &mut self.world,
@@ -515,18 +531,29 @@ impl ApplicationHandler for AppState {
                         system(&mut state);
                     }
                 }
+                let systems_duration = systems_start.elapsed();
 
                 // Render
+                let mut acquire_duration = Default::default();
+                let mut render_duration = Default::default();
+                let mut present_duration = Default::default();
                 if let Some(surface) = &self.surface {
+                    let acquire_start = Instant::now();
                     match surface.get_current_texture() {
                         Ok(output) => {
+                            acquire_duration = acquire_start.elapsed();
                             let view = output
                                 .texture
                                 .create_view(&wgpu::TextureViewDescriptor::default());
+                            let render_start = Instant::now();
                             self.renderer.render(&self.world, &view);
+                            render_duration = render_start.elapsed();
+                            let present_start = Instant::now();
                             output.present();
+                            present_duration = present_start.elapsed();
                         }
                         Err(wgpu::SurfaceError::Lost) => {
+                            acquire_duration = acquire_start.elapsed();
                             if let (Some(device), Some(config)) =
                                 (&self.device, &self.surface_config)
                             {
@@ -534,6 +561,7 @@ impl ApplicationHandler for AppState {
                             }
                         }
                         Err(wgpu::SurfaceError::Outdated) => {
+                            acquire_duration = acquire_start.elapsed();
                             if let (Some(device), Some(config)) =
                                 (&self.device, &self.surface_config)
                             {
@@ -541,16 +569,27 @@ impl ApplicationHandler for AppState {
                             }
                         }
                         Err(wgpu::SurfaceError::Timeout) => {
+                            acquire_duration = acquire_start.elapsed();
                             log::trace!(
                                 "Surface get_current_texture timeout (e.g. vsync), skip frame"
                             );
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => {
+                            acquire_duration = acquire_start.elapsed();
                             log::error!("GPU out of memory, exiting");
                             event_loop.exit();
                         }
                     }
                 }
+
+                self.profiler.record(FrameProfile {
+                    physics: physics_duration,
+                    systems: systems_duration,
+                    acquire_surface: acquire_duration,
+                    render: render_duration,
+                    present: present_duration,
+                    total: frame_start.elapsed(),
+                });
 
                 // Update window title with FPS (throttled to ~0.25s to avoid syscall every frame).
                 if let Some(window) = &self.window {
@@ -558,7 +597,18 @@ impl ApplicationHandler for AppState {
                     let elapsed = self.last_title_update.elapsed().as_secs_f32();
                     if elapsed >= 0.25 {
                         let fps = (self.title_frame_count as f32 / elapsed) as u32;
-                        let title = format!("{} | FPS: {}", self.config.title, fps);
+                        let title = if self.profiler.is_enabled()
+                            && !self.profiler.latest_summary().is_empty()
+                        {
+                            format!(
+                                "{} | FPS: {} | {}",
+                                self.config.title,
+                                fps,
+                                self.profiler.latest_summary()
+                            )
+                        } else {
+                            format!("{} | FPS: {}", self.config.title, fps)
+                        };
                         window.set_title(&title);
                         self.title_frame_count = 0;
                         self.last_title_update = Instant::now();
