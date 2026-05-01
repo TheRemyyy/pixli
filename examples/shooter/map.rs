@@ -73,8 +73,8 @@ pub fn setup_renderer(renderer: &mut Renderer) {
     renderer.set_msaa(4);
     renderer.graphics.enable_shadows = true;
     renderer.graphics.enable_sky = true;
-    renderer.graphics.enable_ssao = false;
-    renderer.graphics.enable_bloom = false;
+    renderer.graphics.enable_ssao = true;
+    renderer.graphics.enable_bloom = true;
 }
 
 /// Spawn map: ground (unlit), walls, crates (lit).

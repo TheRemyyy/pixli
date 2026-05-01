@@ -57,8 +57,8 @@ pub mod prelude {
     pub use crate::math::{Color, Mat4, Quat, Transform, Vec2, Vec3, Vec4};
     pub use crate::physics::{Collider, CollisionEvent, Physics, RigidBody};
     pub use crate::renderer::{
-        Camera, Light, LightType, Material, Mesh, Renderer, Texture, UnlitMesh, UnlitMeshRef,
-        UnlitVertex,
+        BloomSettings, Camera, Light, LightType, Material, Mesh, Renderer, ShadowSettings,
+        SsaoSettings, Texture, UnlitMesh, UnlitMeshRef, UnlitVertex,
     };
     pub use crate::time::Time;
     pub use crate::window::Window;

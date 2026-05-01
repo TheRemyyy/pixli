@@ -3,6 +3,7 @@
 mod bloom;
 mod camera;
 mod constants;
+mod gpu_profiler;
 mod init;
 mod light;
 mod material;
@@ -19,10 +20,12 @@ pub use material::Material;
 pub use mesh::{Mesh, Vertex};
 pub use texture::Texture;
 pub use types::{
-    GpuMesh, GpuVertex, GraphicsSettings, Uniforms, UnlitMesh, UnlitMeshRef, UnlitVertex,
+    BloomSettings, GpuMesh, GpuVertex, GraphicsSettings, ShadowSettings, SsaoSettings, Uniforms,
+    UnlitMesh, UnlitMeshRef, UnlitVertex,
 };
 
 use constants::*;
+use gpu_profiler::GpuProfiler;
 use types::{SkyUniform, UnlitSceneUniform};
 
 use crate::ecs::{Entity, World};
@@ -124,6 +127,7 @@ pub struct Renderer {
     ssao_pipeline: Option<wgpu::RenderPipeline>,
     ssao_params_buffer: Option<wgpu::Buffer>,
     ssao_bind_groups: Option<(wgpu::BindGroup, wgpu::BindGroup, wgpu::BindGroup)>,
+    gpu_profiler: Option<GpuProfiler>,
 }
 
 impl Renderer {
@@ -219,6 +223,7 @@ impl Renderer {
             ssao_pipeline: None,
             ssao_params_buffer: None,
             ssao_bind_groups: None,
+            gpu_profiler: None,
         }
     }
 
@@ -257,8 +262,13 @@ impl Renderer {
         self.queue = Some(queue.clone());
         self.surface_format = format;
 
-        let r =
-            init::create_gpu_resources(device.as_ref(), queue.as_ref(), format, self.msaa_samples);
+        let r = init::create_gpu_resources(
+            device.as_ref(),
+            queue.as_ref(),
+            format,
+            self.msaa_samples,
+            self.graphics.shadow.map_size,
+        );
         self.uniform_buffer = Some(r.uniform_buffer);
         self.uniform_bind_group = Some(r.uniform_bind_group);
         self.pipeline = Some(r.pipeline);
@@ -302,7 +312,14 @@ impl Renderer {
         self.ssao_params_buffer = Some(r.ssao_params_buffer);
 
         self.size = (width.max(1), height.max(1));
+        self.gpu_profiler = Some(GpuProfiler::new(device.as_ref(), queue.as_ref()));
         self.resize(width, height);
+    }
+
+    pub fn latest_gpu_profile_summary(&self) -> Option<String> {
+        self.gpu_profiler
+            .as_ref()
+            .and_then(GpuProfiler::latest_summary)
     }
 
     /// Resize render targets.
@@ -821,6 +838,12 @@ impl Renderer {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
+        if let Some(gpu_profiler) = self.gpu_profiler.as_mut() {
+            gpu_profiler.collect(device);
+            if gpu_profiler.is_enabled() {
+                gpu_profiler.begin_frame(&mut encoder);
+            }
+        }
 
         // Depth pre pass for SSAO: 1 sample depth (independent of MSAA).
         if self.graphics.enable_ssao {
@@ -932,6 +955,7 @@ impl Renderer {
             &mut encoder,
             queue,
             self.size,
+            self.graphics.bloom.blur_passes,
             self.graphics.enable_bloom,
             self.bloom_extract_pipeline.as_ref(),
             self.bloom_blur_pipeline.as_ref(),
@@ -949,6 +973,7 @@ impl Renderer {
             self.size,
             self.camera.projection_matrix(),
             self.camera.view_matrix(),
+            self.graphics.ssao,
             self.graphics.enable_ssao,
             self.ssao_pipeline.as_ref(),
             self.ssao_params_buffer.as_ref(),
@@ -970,7 +995,15 @@ impl Renderer {
             post_vertex_buffer,
         );
 
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            if gpu_profiler.is_enabled() {
+                gpu_profiler.end_frame(&mut encoder);
+            }
+        }
         queue.submit(std::iter::once(encoder.finish()));
+        if let Some(gpu_profiler) = self.gpu_profiler.as_mut() {
+            gpu_profiler.begin_readback();
+        }
     }
 
     /// Set MSAA sample count (1, 2, 4, or 8). After init, changing this recreates pipelines and targets.

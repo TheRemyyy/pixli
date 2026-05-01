@@ -328,9 +328,18 @@ impl ApplicationHandler for AppState {
             }
             log::info!("Using Vulkan adapter: {:?}", adapter_info);
 
+            let adapter_features = adapter.features();
+            let timestamp_features =
+                wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
+            let required_features = if adapter_features.contains(timestamp_features) {
+                timestamp_features
+            } else {
+                wgpu::Features::empty()
+            };
+
             let (device, queue) = match pollster::block_on(adapter.request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::empty(),
+                    required_features,
                     required_limits: wgpu::Limits::default(),
                     label: None,
                     memory_hints: Default::default(),
@@ -597,15 +606,26 @@ impl ApplicationHandler for AppState {
                     let elapsed = self.last_title_update.elapsed().as_secs_f32();
                     if elapsed >= 0.25 {
                         let fps = (self.title_frame_count as f32 / elapsed) as u32;
+                        let gpu_summary = self.renderer.latest_gpu_profile_summary();
                         let title = if self.profiler.is_enabled()
                             && !self.profiler.latest_summary().is_empty()
                         {
-                            format!(
-                                "{} | FPS: {} | {}",
-                                self.config.title,
-                                fps,
-                                self.profiler.latest_summary()
-                            )
+                            if let Some(gpu_summary) = gpu_summary {
+                                format!(
+                                    "{} | FPS: {} | {} | {}",
+                                    self.config.title,
+                                    fps,
+                                    self.profiler.latest_summary(),
+                                    gpu_summary
+                                )
+                            } else {
+                                format!(
+                                    "{} | FPS: {} | {}",
+                                    self.config.title,
+                                    fps,
+                                    self.profiler.latest_summary()
+                                )
+                            }
                         } else {
                             format!("{} | FPS: {}", self.config.title, fps)
                         };

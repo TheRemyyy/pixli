@@ -53,6 +53,7 @@ pub(super) fn create_gpu_resources(
     queue: &wgpu::Queue,
     format: wgpu::TextureFormat,
     msaa_samples: u32,
+    shadow_map_size: u32,
 ) -> GpuResources {
     // Create shader.
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -538,8 +539,8 @@ pub(super) fn create_gpu_resources(
     let shadow_map_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Shadow Map"),
         size: wgpu::Extent3d {
-            width: SHADOW_MAP_SIZE,
-            height: SHADOW_MAP_SIZE,
+            width: shadow_map_size.clamp(1024, 8192),
+            height: shadow_map_size.clamp(1024, 8192),
             depth_or_array_layers: 1,
         },
         mip_level_count: 1,

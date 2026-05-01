@@ -27,7 +27,7 @@ Pixli is a 3D game engine built in Rust with **wgpu** on a strict Vulkan backend
 - **Audio** — Sound loading and playback (rodio)
 - **Input** — Keyboard, mouse, cursor capture
 - **Production-ready** — `Result`-based API, no unwraps on user paths, GPU/surface loss handling (Lost, Outdated, Timeout, OutOfMemory)
-- **Profiling** — Built-in CPU frame profiler for physics, systems, surface acquire, render, present, and total frame time
+- **Profiling** — Built-in CPU and GPU frame profiling for physics, systems, surface acquire, render, present, total frame time, and timestamped GPU render time
 
 ## <a id="requirements"></a>Requirements
 
@@ -105,6 +105,12 @@ With the built-in profiler enabled:
 
 ```bash
 PIXLI_PROFILE=1 PIXLI_PROFILE_INTERVAL=60 cargo run --release
+```
+
+Stress scene with high-quality shadows, SSAO, bloom, and profiling:
+
+```bash
+PIXLI_PROFILE=1 PIXLI_PROFILE_INTERVAL=120 cargo run --release --bin pixli-stress
 ```
 
 Controls: WASD move, mouse aim, LMB fire, Space jump, ESC release mouse or quit.

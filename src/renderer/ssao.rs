@@ -1,6 +1,7 @@
 //! SSAO: screen-space ambient occlusion pass and blur.
 
 use super::pass_common::BlurParams;
+use super::types::SsaoSettings;
 use crate::math::Mat4;
 
 #[repr(C)]
@@ -22,6 +23,7 @@ pub(super) fn run_ssao_pass(
     size: (u32, u32),
     proj: Mat4,
     view: Mat4,
+    settings: SsaoSettings,
     enable_ssao: bool,
     ssao_pipe: Option<&wgpu::RenderPipeline>,
     ssao_params_buf: Option<&wgpu::Buffer>,
@@ -60,10 +62,10 @@ pub(super) fn run_ssao_pass(
                 proj_inv: proj_inv.to_cols_array(),
                 proj: proj.to_cols_array(),
                 view_inv: view_inv.to_cols_array(),
-                sample_radius: 1.0,
-                bias: 0.025,
-                intensity: 0.8,
-                max_dist: 100.0,
+                sample_radius: settings.sample_radius,
+                bias: settings.bias,
+                intensity: settings.intensity,
+                max_dist: settings.max_distance,
             };
             queue.write_buffer(ssao_params_buf, 0, bytemuck::bytes_of(&ssao_params));
             let texel = [1.0 / w as f32, 1.0 / h as f32];
@@ -86,118 +88,72 @@ pub(super) fn run_ssao_pass(
             pass.set_bind_group(0, ssao_bg, &[]);
             pass.set_vertex_buffer(0, pvb.slice(..));
             pass.draw(0..3, 0..1);
+            drop(pass);
 
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 1,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur H"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_blur_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_in, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
+            let blur_passes = settings.blur_passes.clamp(1, 8);
+            for pass_index in 0..blur_passes {
+                queue.write_buffer(
+                    blur_params_buf,
+                    0,
+                    bytemuck::bytes_of(&BlurParams {
+                        texel_size: texel,
+                        is_horizontal: 1,
+                        _pad: 0,
+                    }),
+                );
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("SSAO Blur H"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: ssao_blur_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: if pass_index == 0 {
+                                wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+                            } else {
+                                wgpu::LoadOp::Load
+                            },
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                pass.set_pipeline(blur_pipe);
+                pass.set_bind_group(0, ssao_blur_in, &[]);
+                pass.set_vertex_buffer(0, pvb.slice(..));
+                pass.draw(0..3, 0..1);
+                drop(pass);
 
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 0,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur V"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_out, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 1,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur H2"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_blur_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_in, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
-
-            queue.write_buffer(
-                blur_params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 0,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("SSAO Blur V2"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: ssao_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, ssao_blur_out, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
+                queue.write_buffer(
+                    blur_params_buf,
+                    0,
+                    bytemuck::bytes_of(&BlurParams {
+                        texel_size: texel,
+                        is_horizontal: 0,
+                        _pad: 0,
+                    }),
+                );
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("SSAO Blur V"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: ssao_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                pass.set_pipeline(blur_pipe);
+                pass.set_bind_group(0, ssao_blur_out, &[]);
+                pass.set_vertex_buffer(0, pvb.slice(..));
+                pass.draw(0..3, 0..1);
+                drop(pass);
+            }
         }
     } else if let Some(ssao_tex) = ssao_texture {
         let ssao_view = ssao_tex.create_view(&Default::default());

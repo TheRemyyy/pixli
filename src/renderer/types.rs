@@ -133,6 +133,9 @@ pub struct GraphicsSettings {
     pub enable_ssao: bool,
     pub enable_bloom: bool,
     pub enable_fog: bool,
+    pub shadow: ShadowSettings,
+    pub ssao: SsaoSettings,
+    pub bloom: BloomSettings,
 }
 
 impl Default for GraphicsSettings {
@@ -145,6 +148,73 @@ impl Default for GraphicsSettings {
             enable_ssao: false,
             enable_bloom: false,
             enable_fog: false,
+            shadow: ShadowSettings::high(),
+            ssao: SsaoSettings::high(),
+            bloom: BloomSettings::high(),
         }
+    }
+}
+
+/// Shadow-map quality settings.
+#[derive(Clone, Copy, Debug)]
+pub struct ShadowSettings {
+    pub map_size: u32,
+}
+
+impl ShadowSettings {
+    pub fn high() -> Self {
+        Self { map_size: 4096 }
+    }
+
+    pub fn ultra() -> Self {
+        Self { map_size: 8192 }
+    }
+}
+
+/// SSAO quality settings.
+#[derive(Clone, Copy, Debug)]
+pub struct SsaoSettings {
+    pub sample_radius: f32,
+    pub bias: f32,
+    pub intensity: f32,
+    pub max_distance: f32,
+    pub blur_passes: u32,
+}
+
+impl SsaoSettings {
+    pub fn high() -> Self {
+        Self {
+            sample_radius: 1.35,
+            bias: 0.018,
+            intensity: 1.15,
+            max_distance: 150.0,
+            blur_passes: 3,
+        }
+    }
+
+    pub fn ultra() -> Self {
+        Self {
+            sample_radius: 1.65,
+            bias: 0.014,
+            intensity: 1.25,
+            max_distance: 220.0,
+            blur_passes: 4,
+        }
+    }
+}
+
+/// Bloom quality settings.
+#[derive(Clone, Copy, Debug)]
+pub struct BloomSettings {
+    pub blur_passes: u32,
+}
+
+impl BloomSettings {
+    pub fn high() -> Self {
+        Self { blur_passes: 3 }
+    }
+
+    pub fn ultra() -> Self {
+        Self { blur_passes: 5 }
     }
 }

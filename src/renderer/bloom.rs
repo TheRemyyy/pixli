@@ -6,6 +6,7 @@ pub(super) fn run_bloom(
     encoder: &mut wgpu::CommandEncoder,
     queue: &wgpu::Queue,
     size: (u32, u32),
+    blur_passes: u32,
     enable_bloom: bool,
     extract_pipe: Option<&wgpu::RenderPipeline>,
     blur_pipe: Option<&wgpu::RenderPipeline>,
@@ -56,62 +57,71 @@ pub(super) fn run_bloom(
             pass.set_bind_group(0, bg_extract, &[]);
             pass.set_vertex_buffer(0, pvb.slice(..));
             pass.draw(0..3, 0..1);
+            drop(pass);
 
-            queue.write_buffer(
-                params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 1,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Bloom Blur H"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &bloom_b_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, bg_blur_a, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
+            for pass_index in 0..blur_passes.clamp(1, 8) {
+                queue.write_buffer(
+                    params_buf,
+                    0,
+                    bytemuck::bytes_of(&BlurParams {
+                        texel_size: texel,
+                        is_horizontal: 1,
+                        _pad: 0,
+                    }),
+                );
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Bloom Blur H"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &bloom_b_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: if pass_index == 0 {
+                                wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+                            } else {
+                                wgpu::LoadOp::Load
+                            },
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                pass.set_pipeline(blur_pipe);
+                pass.set_bind_group(0, bg_blur_a, &[]);
+                pass.set_vertex_buffer(0, pvb.slice(..));
+                pass.draw(0..3, 0..1);
+                drop(pass);
 
-            queue.write_buffer(
-                params_buf,
-                0,
-                bytemuck::bytes_of(&BlurParams {
-                    texel_size: texel,
-                    is_horizontal: 0,
-                    _pad: 0,
-                }),
-            );
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Bloom Blur V"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &bloom_a_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            pass.set_pipeline(blur_pipe);
-            pass.set_bind_group(0, bg_blur_b, &[]);
-            pass.set_vertex_buffer(0, pvb.slice(..));
-            pass.draw(0..3, 0..1);
+                queue.write_buffer(
+                    params_buf,
+                    0,
+                    bytemuck::bytes_of(&BlurParams {
+                        texel_size: texel,
+                        is_horizontal: 0,
+                        _pad: 0,
+                    }),
+                );
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Bloom Blur V"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &bloom_a_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                pass.set_pipeline(blur_pipe);
+                pass.set_bind_group(0, bg_blur_b, &[]);
+                pass.set_vertex_buffer(0, pvb.slice(..));
+                pass.draw(0..3, 0..1);
+                drop(pass);
+            }
         }
     } else if let Some(bloom_a) = bloom_a {
         let bloom_a_view = bloom_a.create_view(&Default::default());

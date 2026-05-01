@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Linux desktop support** — Explicit X11/Wayland winit features, Linux app id / WM_CLASS metadata, Vulkan-only backend selection, and surface-capability based present mode fallback for GNOME, KDE Plasma, wlroots, X11, and XWayland sessions.
 - **Release game binary** — `cargo build --release` now builds `pixli-shooter`, and `cargo run --release` launches it by default.
 - **Profiler** — Built-in CPU frame profiler controlled by `PIXLI_PROFILE=1` with timings for physics, systems, surface acquire, render, present, and total frame time.
+- **GPU profiling** — Vulkan timestamp queries report GPU frame time when the adapter supports timestamp queries.
+- **Stress scene** — `pixli-stress` binary renders a dense lighting/post-processing scene for repeatable performance checks.
 
 ### Changed
 
@@ -27,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Examples** — Shooter example `main` returns `pixli::Result<()>` and uses `run()` without unwrap.
 - **Audio** — Rodio output is behind the `audio` feature so Linux library and release-game builds do not require ALSA development headers unless sound is enabled.
 - **Graphics** — Non-Vulkan wgpu backends are rejected at startup; Pixli now requires a Vulkan adapter.
+- **Quality presets** — Shadows, SSAO, and bloom now use explicit quality settings; shooter enables SSAO and bloom by default.
 
 ## [0.1.0] — Initial release
 

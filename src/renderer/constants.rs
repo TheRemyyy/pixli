@@ -16,7 +16,5 @@ pub const MAX_LIT_DRAWS: usize = 256;
 /// Stride for lit uniform buffer (alignment typically 256).
 pub const LIT_UNIFORM_STRIDE: u64 = 512;
 
-/// Shadow map size for directional light.
-pub const SHADOW_MAP_SIZE: u32 = 2048;
 /// Stride per entity for shadow uniform (at least min_uniform_buffer_offset_alignment, typically 256).
 pub const SHADOW_ENTITY_STRIDE: u64 = 256;
