@@ -1,7 +1,7 @@
 //! GPU resource creation for the renderer (pipelines, buffers, bind groups).
 
 use super::constants::*;
-use super::types::{GpuVertex, LitInstance, UnlitVertex};
+use super::types::{GpuVertex, LitInstance, MatrixInstance, UnlitVertex};
 use wgpu::util::DeviceExt;
 
 pub(super) struct GpuResources {
@@ -24,10 +24,7 @@ pub(super) struct GpuResources {
     pub shadow_map_view: wgpu::TextureView,
     pub shadow_sampler: wgpu::Sampler,
     pub shadow_light_view_proj_buffer: wgpu::Buffer,
-    pub shadow_entity_buffer: wgpu::Buffer,
     pub shadow_pipeline: wgpu::RenderPipeline,
-    pub shadow_bind_group_layout: wgpu::BindGroupLayout,
-    pub shadow_bind_group: wgpu::BindGroup,
     pub lit_shadow_bind_group: wgpu::BindGroup,
     pub default_normal_map: wgpu::Texture,
     pub default_normal_map_view: wgpu::TextureView,
@@ -42,8 +39,6 @@ pub(super) struct GpuResources {
     pub bloom_blur_params_buffer: wgpu::Buffer,
     pub depth_prepass_lit_pipeline: wgpu::RenderPipeline,
     pub depth_prepass_unlit_pipeline: wgpu::RenderPipeline,
-    pub depth_ssao_entity_buffer: wgpu::Buffer,
-    pub depth_prepass_lit_bind_group: wgpu::BindGroup,
     pub ssao_pipeline: wgpu::RenderPipeline,
     pub ssao_params_buffer: wgpu::Buffer,
 }
@@ -568,44 +563,12 @@ pub(super) fn create_gpu_resources(
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-    let shadow_entity_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("Shadow Entity Buffer"),
-        size: (MAX_LIT_DRAWS as u64) * SHADOW_ENTITY_STRIDE,
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
     let shadow_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shadow Shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("shadow.wgsl").into()),
     });
-    let shadow_bind_group_layout =
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: true,
-                        min_binding_size: std::num::NonZeroU64::new(SHADOW_ENTITY_STRIDE),
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(64),
-                    },
-                    count: None,
-                },
-            ],
-            label: Some("shadow_bind_group_layout"),
-        });
     let shadow_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        bind_group_layouts: &[&shadow_bind_group_layout],
+        bind_group_layouts: &[],
         push_constant_ranges: &[],
         label: Some("Shadow Pipeline Layout"),
     });
@@ -615,7 +578,7 @@ pub(super) fn create_gpu_resources(
         vertex: wgpu::VertexState {
             module: &shadow_shader,
             entry_point: Some("vs_main"),
-            buffers: &[GpuVertex::desc()],
+            buffers: &[GpuVertex::desc(), MatrixInstance::desc()],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -647,28 +610,6 @@ pub(super) fn create_gpu_resources(
         multisample: wgpu::MultisampleState::default(),
         multiview: None,
         cache: None,
-    });
-    let shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout: &shadow_bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &shadow_entity_buffer,
-                    offset: 0,
-                    size: std::num::NonZeroU64::new(SHADOW_ENTITY_STRIDE),
-                }),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &shadow_light_view_proj_buffer,
-                    offset: 0,
-                    size: std::num::NonZeroU64::new(64),
-                }),
-            },
-        ],
-        label: Some("shadow_bind_group"),
     });
     let lit_shadow_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         layout: &lit_shadow_bind_group_layout,
@@ -948,27 +889,8 @@ pub(super) fn create_gpu_resources(
         label: Some("Depth Unlit"),
         source: wgpu::ShaderSource::Wgsl(include_str!("depth_unlit.wgsl").into()),
     });
-    let depth_entity_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: true,
-                min_binding_size: std::num::NonZeroU64::new(64),
-            },
-            count: None,
-        }],
-        label: Some("depth_entity_bgl"),
-    });
-    let depth_ssao_entity_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("Depth SSAO Entity"),
-        size: (MAX_LIT_DRAWS as u64) * SHADOW_ENTITY_STRIDE,
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
     let depth_prepass_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        bind_group_layouts: &[&depth_entity_bgl],
+        bind_group_layouts: &[],
         push_constant_ranges: &[],
         label: Some("depth_prepass_pl"),
     });
@@ -979,7 +901,7 @@ pub(super) fn create_gpu_resources(
             vertex: wgpu::VertexState {
                 module: &depth_prepass_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[GpuVertex::desc()],
+                buffers: &[GpuVertex::desc(), MatrixInstance::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -1127,18 +1049,6 @@ pub(super) fn create_gpu_resources(
         multiview: None,
         cache: None,
     });
-    let depth_prepass_lit_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout: &depth_entity_bgl,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                buffer: &depth_ssao_entity_buffer,
-                offset: 0,
-                size: std::num::NonZeroU64::new(64),
-            }),
-        }],
-        label: Some("depth_prepass_lit_bg"),
-    });
     GpuResources {
         uniform_buffer,
         uniform_bind_group,
@@ -1159,10 +1069,7 @@ pub(super) fn create_gpu_resources(
         shadow_map_view,
         shadow_sampler,
         shadow_light_view_proj_buffer,
-        shadow_entity_buffer,
         shadow_pipeline,
-        shadow_bind_group_layout,
-        shadow_bind_group,
         lit_shadow_bind_group,
         default_normal_map,
         default_normal_map_view,
@@ -1177,8 +1084,6 @@ pub(super) fn create_gpu_resources(
         bloom_blur_params_buffer,
         depth_prepass_lit_pipeline,
         depth_prepass_unlit_pipeline,
-        depth_ssao_entity_buffer,
-        depth_prepass_lit_bind_group,
         ssao_pipeline,
         ssao_params_buffer,
     }

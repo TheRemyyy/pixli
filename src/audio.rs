@@ -141,7 +141,7 @@ impl Audio {
         {
             let _ = source.data.len();
             let _ = volume;
-            return Sound::silent();
+            Sound::silent()
         }
 
         #[cfg(feature = "audio")]
@@ -178,7 +178,7 @@ impl Audio {
         #[cfg(not(feature = "audio"))]
         {
             let _ = source.data.len();
-            return Sound::silent();
+            Sound::silent()
         }
 
         #[cfg(feature = "audio")]

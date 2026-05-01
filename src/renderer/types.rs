@@ -153,6 +153,45 @@ impl LitInstance {
     }
 }
 
+/// Per-instance transform matrix for depth-only lit passes.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub(crate) struct MatrixInstance {
+    pub transform: [[f32; 4]; 4],
+}
+
+impl MatrixInstance {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        const ATTRIBS: [wgpu::VertexAttribute; 4] = [
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 16,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 7,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 48,
+                shader_location: 8,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+        ];
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<MatrixInstance>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &ATTRIBS,
+        }
+    }
+}
+
 /// Unlit scene uniform (camera and fog).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

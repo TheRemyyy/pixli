@@ -40,7 +40,7 @@ pub(super) fn run_bloom(
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Bloom Extract"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &bloom_a_view,
+                    view: bloom_a_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -70,7 +70,7 @@ pub(super) fn run_bloom(
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Bloom Blur H"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &bloom_b_view,
+                        view: bloom_b_view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: if pass_index == 0 {
@@ -103,7 +103,7 @@ pub(super) fn run_bloom(
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Bloom Blur V"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &bloom_a_view,
+                        view: bloom_a_view,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -125,7 +125,7 @@ pub(super) fn run_bloom(
         let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Bloom Clear"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &bloom_a_view,
+                view: bloom_a_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),

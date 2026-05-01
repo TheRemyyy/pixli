@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quality presets** — Shadows, SSAO, and bloom now use explicit quality settings; shooter enables SSAO and bloom by default.
 - **Renderer CPU overhead** — Bloom render target views and lit entity collection now reuse cached allocations instead of recreating per frame.
 - **Lit batching** — Main lit pass now uses per-instance vertex data and batches consecutive entities sharing a mesh, reducing draw-call and bind-group overhead without changing shading quality.
+- **Depth/shadow batching** — SSAO depth prepass and shadow map rendering now use matrix instance buffers and mesh batching instead of per-entity dynamic uniforms.
 
 ## [0.1.0] — Initial release
 

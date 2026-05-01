@@ -26,7 +26,7 @@ pub use types::{
 
 use constants::*;
 use gpu_profiler::GpuProfiler;
-use types::{LitInstance, SkyUniform, UnlitSceneUniform};
+use types::{LitInstance, MatrixInstance, SkyUniform, UnlitSceneUniform};
 
 use crate::ecs::{Entity, World};
 use crate::math::{Color, Mat4, Transform, Vec3};
@@ -55,6 +55,8 @@ pub struct Renderer {
     uniform_buffer: Option<wgpu::Buffer>,
     uniform_bind_group: Option<wgpu::BindGroup>,
     lit_instance_buffer: Option<wgpu::Buffer>,
+    depth_instance_buffer: Option<wgpu::Buffer>,
+    shadow_instance_buffer: Option<wgpu::Buffer>,
     depth_texture: Option<wgpu::TextureView>,
     msaa_texture: Option<wgpu::TextureView>,
     mesh_cache: HashMap<u64, GpuMesh>,
@@ -81,19 +83,17 @@ pub struct Renderer {
     lit_uniform_scratch: Vec<u8>,
     lit_entity_scratch: Vec<Entity>,
     lit_instance_scratch: Vec<LitInstance>,
+    matrix_instance_scratch: Vec<MatrixInstance>,
     lit_batch_scratch: Vec<(u64, u32, u32)>,
+    matrix_batch_scratch: Vec<(u64, u32, u32)>,
     // Shadow mapping.
     shadow_map_texture: Option<wgpu::Texture>,
     shadow_map_view: Option<wgpu::TextureView>,
     shadow_sampler: Option<wgpu::Sampler>,
     shadow_light_view_proj_buffer: Option<wgpu::Buffer>,
-    shadow_entity_buffer: Option<wgpu::Buffer>,
     shadow_pipeline: Option<wgpu::RenderPipeline>,
-    shadow_bind_group_layout: Option<wgpu::BindGroupLayout>,
-    shadow_bind_group: Option<wgpu::BindGroup>,
     lit_shadow_bind_group_layout: Option<wgpu::BindGroupLayout>,
     lit_shadow_bind_group: Option<wgpu::BindGroup>,
-    shadow_entity_scratch: Vec<u8>,
     // Normal map (bump mapping), default flat 1x1.
     default_normal_map: Option<wgpu::Texture>,
     default_normal_map_view: Option<wgpu::TextureView>,
@@ -121,9 +121,6 @@ pub struct Renderer {
     depth_ssao_view: Option<wgpu::TextureView>,
     depth_prepass_lit_pipeline: Option<wgpu::RenderPipeline>,
     depth_prepass_unlit_pipeline: Option<wgpu::RenderPipeline>,
-    depth_ssao_entity_buffer: Option<wgpu::Buffer>,
-    depth_ssao_entity_scratch: Vec<u8>,
-    depth_prepass_lit_bind_group: Option<wgpu::BindGroup>,
     depth_prepass_unlit_bind_group: Option<wgpu::BindGroup>,
     ssao_texture: Option<wgpu::Texture>,
     ssao_texture_view: Option<wgpu::TextureView>,
@@ -162,6 +159,8 @@ impl Renderer {
             uniform_buffer: None,
             uniform_bind_group: None,
             lit_instance_buffer: None,
+            depth_instance_buffer: None,
+            shadow_instance_buffer: None,
             depth_texture: None,
             msaa_texture: None,
             mesh_cache: HashMap::new(),
@@ -185,20 +184,16 @@ impl Renderer {
             lit_uniform_scratch: Vec::with_capacity(MAX_LIT_DRAWS * LIT_UNIFORM_STRIDE as usize),
             lit_entity_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             lit_instance_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
+            matrix_instance_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             lit_batch_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
+            matrix_batch_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             shadow_map_texture: None,
             shadow_map_view: None,
             shadow_sampler: None,
             shadow_light_view_proj_buffer: None,
-            shadow_entity_buffer: None,
             shadow_pipeline: None,
-            shadow_bind_group_layout: None,
-            shadow_bind_group: None,
             lit_shadow_bind_group_layout: None,
             lit_shadow_bind_group: None,
-            shadow_entity_scratch: Vec::with_capacity(
-                MAX_LIT_DRAWS * SHADOW_ENTITY_STRIDE as usize,
-            ),
             default_normal_map: None,
             default_normal_map_view: None,
             normal_map_sampler: None,
@@ -222,9 +217,6 @@ impl Renderer {
             depth_ssao_view: None,
             depth_prepass_lit_pipeline: None,
             depth_prepass_unlit_pipeline: None,
-            depth_ssao_entity_buffer: None,
-            depth_ssao_entity_scratch: Vec::new(),
-            depth_prepass_lit_bind_group: None,
             depth_prepass_unlit_bind_group: None,
             ssao_texture: None,
             ssao_texture_view: None,
@@ -287,6 +279,18 @@ impl Renderer {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }));
+        self.depth_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Depth Instance Buffer"),
+            size: MATRIX_INSTANCE_BUFFER_SIZE,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }));
+        self.shadow_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Shadow Instance Buffer"),
+            size: MATRIX_INSTANCE_BUFFER_SIZE,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }));
         self.pipeline = Some(r.pipeline);
         self.lit_pipeline_layout = Some(r.lit_pipeline_layout);
         self.lit_shadow_bind_group_layout = Some(r.lit_shadow_bind_group_layout);
@@ -304,10 +308,7 @@ impl Renderer {
         self.shadow_map_view = Some(r.shadow_map_view);
         self.shadow_sampler = Some(r.shadow_sampler);
         self.shadow_light_view_proj_buffer = Some(r.shadow_light_view_proj_buffer);
-        self.shadow_entity_buffer = Some(r.shadow_entity_buffer);
         self.shadow_pipeline = Some(r.shadow_pipeline);
-        self.shadow_bind_group_layout = Some(r.shadow_bind_group_layout);
-        self.shadow_bind_group = Some(r.shadow_bind_group);
         self.lit_shadow_bind_group = Some(r.lit_shadow_bind_group);
         self.default_normal_map = Some(r.default_normal_map);
         self.default_normal_map_view = Some(r.default_normal_map_view);
@@ -322,8 +323,6 @@ impl Renderer {
         self.bloom_blur_params_buffer = Some(r.bloom_blur_params_buffer);
         self.depth_prepass_lit_pipeline = Some(r.depth_prepass_lit_pipeline);
         self.depth_prepass_unlit_pipeline = Some(r.depth_prepass_unlit_pipeline);
-        self.depth_ssao_entity_buffer = Some(r.depth_ssao_entity_buffer);
-        self.depth_prepass_lit_bind_group = Some(r.depth_prepass_lit_bind_group);
         self.ssao_pipeline = Some(r.ssao_pipeline);
         self.ssao_params_buffer = Some(r.ssao_params_buffer);
 
@@ -786,6 +785,12 @@ impl Renderer {
         let Some(lit_instance_buffer) = &self.lit_instance_buffer else {
             return;
         };
+        let Some(depth_instance_buffer) = &self.depth_instance_buffer else {
+            return;
+        };
+        let Some(shadow_instance_buffer) = &self.shadow_instance_buffer else {
+            return;
+        };
         let Some(depth_texture) = &self.depth_texture else {
             return;
         };
@@ -833,9 +838,7 @@ impl Renderer {
         };
         let shadow_map_view = self.shadow_map_view.as_ref();
         let shadow_light_view_proj_buffer = self.shadow_light_view_proj_buffer.as_ref();
-        let shadow_entity_buffer = self.shadow_entity_buffer.as_ref();
         let shadow_pipeline = self.shadow_pipeline.as_ref();
-        let shadow_bind_group = self.shadow_bind_group.as_ref();
         let lit_shadow_bind_group = self.lit_shadow_bind_group.as_ref();
 
         let (light_dir, light_color, light_intensity) =
@@ -874,32 +877,28 @@ impl Renderer {
                 Some(depth_ssao_view),
                 Some(depth_lit_pipe),
                 Some(depth_unlit_pipe),
-                Some(depth_lit_bg),
                 Some(depth_unlit_bg),
-                Some(depth_entity_buf),
             ) = (
                 self.depth_ssao_view.as_ref(),
                 &self.depth_prepass_lit_pipeline,
                 &self.depth_prepass_unlit_pipeline,
-                &self.depth_prepass_lit_bind_group,
                 &self.depth_prepass_unlit_bind_group,
-                &self.depth_ssao_entity_buffer,
             ) {
                 run_depth_prepass_ssao(
                     &mut encoder,
                     queue,
                     world,
                     view_proj,
-                    &lit_entities,
+                    lit_entities,
                     &batches,
                     &entity_order,
-                    &mut self.depth_ssao_entity_scratch,
+                    &mut self.matrix_instance_scratch,
+                    &mut self.matrix_batch_scratch,
                     depth_ssao_view,
                     depth_lit_pipe,
                     depth_unlit_pipe,
-                    depth_lit_bg,
                     depth_unlit_bg,
-                    depth_entity_buf,
+                    depth_instance_buffer,
                     &self.mesh_cache,
                     &self.unlit_mesh_cache,
                 );
@@ -907,28 +906,26 @@ impl Renderer {
         }
 
         // Shadow pass: render lit geometry from light view into shadow map.
-        if let (Some(light), Some(sv), Some(slb), Some(seb), Some(sp), Some(sbg)) = (
+        if let (Some(light), Some(sv), Some(slb), Some(sp)) = (
             self.directional_light.as_ref(),
             shadow_map_view,
             shadow_light_view_proj_buffer,
-            shadow_entity_buffer,
             shadow_pipeline,
-            shadow_bind_group,
         ) {
             run_shadow_pass(
                 &mut encoder,
                 queue,
                 world,
-                &lit_entities,
+                lit_entities,
                 light,
                 self.camera.position,
                 self.graphics.enable_shadows,
-                &mut self.shadow_entity_scratch,
+                &mut self.matrix_instance_scratch,
+                &mut self.matrix_batch_scratch,
                 sv,
                 slb,
-                seb,
+                shadow_instance_buffer,
                 sp,
-                sbg,
                 &self.mesh_cache,
             );
         }
@@ -938,7 +935,7 @@ impl Renderer {
             queue,
             world,
             view_proj,
-            &lit_entities,
+            lit_entities,
             &batches,
             &entity_order,
             self.msaa_samples,
@@ -1065,6 +1062,42 @@ impl Renderer {
     }
 }
 
+fn build_lit_matrix_batches(
+    world: &World,
+    lit_entities: &[Entity],
+    matrix_instance_scratch: &mut Vec<MatrixInstance>,
+    matrix_batch_scratch: &mut Vec<(u64, u32, u32)>,
+    transform_matrix: impl Fn(&Transform) -> Mat4,
+) {
+    matrix_instance_scratch.clear();
+    matrix_batch_scratch.clear();
+    let mut current_mesh_id = None;
+    for entity in lit_entities.iter() {
+        let Some(transform) = world.get::<Transform>(*entity) else {
+            continue;
+        };
+        let Some(mesh) = world.get::<Mesh>(*entity) else {
+            continue;
+        };
+        let mesh_id = mesh.id();
+        let instance_index = matrix_instance_scratch.len() as u32;
+        match current_mesh_id {
+            Some(active_mesh_id) if active_mesh_id == mesh_id => {
+                if let Some((_, _, count)) = matrix_batch_scratch.last_mut() {
+                    *count += 1;
+                }
+            }
+            _ => {
+                matrix_batch_scratch.push((mesh_id, instance_index, 1));
+                current_mesh_id = Some(mesh_id);
+            }
+        }
+        matrix_instance_scratch.push(MatrixInstance {
+            transform: transform_matrix(transform).to_cols_array(),
+        });
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_depth_prepass_ssao(
     encoder: &mut wgpu::CommandEncoder,
@@ -1074,33 +1107,16 @@ fn run_depth_prepass_ssao(
     lit_entities: &[Entity],
     batches: &[(u64, u32, u32)],
     entity_order: &[Entity],
-    depth_ssao_entity_scratch: &mut Vec<u8>,
+    matrix_instance_scratch: &mut Vec<MatrixInstance>,
+    matrix_batch_scratch: &mut Vec<(u64, u32, u32)>,
     depth_ssao_view: &wgpu::TextureView,
     depth_lit_pipe: &wgpu::RenderPipeline,
     depth_unlit_pipe: &wgpu::RenderPipeline,
-    depth_lit_bg: &wgpu::BindGroup,
     depth_unlit_bg: &wgpu::BindGroup,
-    depth_entity_buf: &wgpu::Buffer,
+    depth_instance_buffer: &wgpu::Buffer,
     mesh_cache: &HashMap<u64, GpuMesh>,
     unlit_mesh_cache: &HashMap<u64, GpuMesh>,
 ) {
-    depth_ssao_entity_scratch.resize(lit_entities.len() * SHADOW_ENTITY_STRIDE as usize, 0);
-    for (i, entity) in lit_entities.iter().enumerate() {
-        let Some(transform) = world.get::<Transform>(*entity) else {
-            continue;
-        };
-        let model = transform.matrix();
-        let mvp = view_proj * model;
-        let slot = i * SHADOW_ENTITY_STRIDE as usize;
-        depth_ssao_entity_scratch[slot..slot + 64]
-            .copy_from_slice(bytemuck::bytes_of(&mvp.to_cols_array()));
-    }
-    queue.write_buffer(
-        depth_entity_buf,
-        0,
-        &depth_ssao_entity_scratch[..lit_entities.len() * SHADOW_ENTITY_STRIDE as usize],
-    );
-
     let mut depth_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("Depth Prepass SSAO"),
         color_attachments: &[],
@@ -1130,15 +1146,27 @@ fn run_depth_prepass_ssao(
         }
     }
     if !lit_entities.is_empty() {
+        build_lit_matrix_batches(
+            world,
+            lit_entities,
+            matrix_instance_scratch,
+            matrix_batch_scratch,
+            |transform| view_proj * transform.matrix(),
+        );
+        if matrix_instance_scratch.is_empty() {
+            return;
+        }
+        queue.write_buffer(
+            depth_instance_buffer,
+            0,
+            bytemuck::cast_slice(matrix_instance_scratch),
+        );
         depth_pass.set_pipeline(depth_lit_pipe);
-        for (i, entity) in lit_entities.iter().enumerate() {
-            let Some(mesh) = world.get::<Mesh>(*entity) else {
-                continue;
-            };
-            depth_pass.set_bind_group(0, depth_lit_bg, &[(i as u64 * SHADOW_ENTITY_STRIDE) as u32]);
-            if let Some(gpu_mesh) = mesh_cache.get(&mesh.id()) {
+        depth_pass.set_vertex_buffer(1, depth_instance_buffer.slice(..));
+        for (mesh_id, start, count) in matrix_batch_scratch.iter().copied() {
+            if let Some(gpu_mesh) = mesh_cache.get(&mesh_id) {
                 depth_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
-                depth_pass.draw(0..gpu_mesh.vertex_count, 0..1);
+                depth_pass.draw(0..gpu_mesh.vertex_count, start..start + count);
             }
         }
     }
@@ -1153,12 +1181,12 @@ fn run_shadow_pass(
     light: &Light,
     camera_position: Vec3,
     enable_shadows: bool,
-    shadow_entity_scratch: &mut Vec<u8>,
+    matrix_instance_scratch: &mut Vec<MatrixInstance>,
+    matrix_batch_scratch: &mut Vec<(u64, u32, u32)>,
     shadow_map_view: &wgpu::TextureView,
     shadow_light_view_proj_buffer: &wgpu::Buffer,
-    shadow_entity_buffer: &wgpu::Buffer,
+    shadow_instance_buffer: &wgpu::Buffer,
     shadow_pipeline: &wgpu::RenderPipeline,
-    shadow_bind_group: &wgpu::BindGroup,
     mesh_cache: &HashMap<u64, GpuMesh>,
 ) {
     if enable_shadows && !lit_entities.is_empty() && light.light_type == LightType::Directional {
@@ -1178,23 +1206,21 @@ fn run_shadow_pass(
             0,
             bytemuck::cast_slice(&light_view_proj.to_cols_array()),
         );
-        shadow_entity_scratch.resize(lit_entities.len() * SHADOW_ENTITY_STRIDE as usize, 0);
-        for (i, entity) in lit_entities.iter().enumerate() {
-            let Some(transform) = world.get::<Transform>(*entity) else {
-                continue;
-            };
-            let model = transform.matrix();
-            let light_mvp = light_view_proj * model;
-            let slot = i * SHADOW_ENTITY_STRIDE as usize;
-            shadow_entity_scratch[slot..slot + 64]
-                .copy_from_slice(bytemuck::bytes_of(&model.to_cols_array()));
-            shadow_entity_scratch[slot + 64..slot + 128]
-                .copy_from_slice(bytemuck::bytes_of(&light_mvp.to_cols_array()));
+        build_lit_matrix_batches(
+            world,
+            lit_entities,
+            matrix_instance_scratch,
+            matrix_batch_scratch,
+            |transform| light_view_proj * transform.matrix(),
+        );
+        if matrix_instance_scratch.is_empty() {
+            clear_shadow_map(encoder, shadow_map_view);
+            return;
         }
         queue.write_buffer(
-            shadow_entity_buffer,
+            shadow_instance_buffer,
             0,
-            &shadow_entity_scratch[..lit_entities.len() * SHADOW_ENTITY_STRIDE as usize],
+            bytemuck::cast_slice(matrix_instance_scratch),
         );
         let mut shadow_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Shadow Pass"),
@@ -1211,36 +1237,33 @@ fn run_shadow_pass(
             occlusion_query_set: None,
         });
         shadow_pass.set_pipeline(shadow_pipeline);
-        for (i, entity) in lit_entities.iter().enumerate() {
-            let Some(mesh) = world.get::<Mesh>(*entity) else {
-                continue;
-            };
-            shadow_pass.set_bind_group(
-                0,
-                shadow_bind_group,
-                &[(i as u64 * SHADOW_ENTITY_STRIDE) as u32],
-            );
-            if let Some(gpu_mesh) = mesh_cache.get(&mesh.id()) {
+        shadow_pass.set_vertex_buffer(1, shadow_instance_buffer.slice(..));
+        for (mesh_id, start, count) in matrix_batch_scratch.iter().copied() {
+            if let Some(gpu_mesh) = mesh_cache.get(&mesh_id) {
                 shadow_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
-                shadow_pass.draw(0..gpu_mesh.vertex_count, 0..1);
+                shadow_pass.draw(0..gpu_mesh.vertex_count, start..start + count);
             }
         }
     } else {
-        let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Shadow Pass Clear"),
-            color_attachments: &[],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: shadow_map_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+        clear_shadow_map(encoder, shadow_map_view);
     }
+}
+
+fn clear_shadow_map(encoder: &mut wgpu::CommandEncoder, shadow_map_view: &wgpu::TextureView) {
+    let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("Shadow Pass Clear"),
+        color_attachments: &[],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: shadow_map_view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+    });
 }
 
 #[allow(clippy::too_many_arguments)]
