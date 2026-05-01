@@ -17,7 +17,7 @@
 
 ## <a id="overview"></a>Overview
 
-Pixli is a 3D game engine built in Rust with **wgpu** for cross-platform graphics (Vulkan, DirectX 12, Metal). It provides an entity-component system (ECS), PBR lighting with shadows, SSAO, bloom, unlit/lit pipelines, physics (AABB/sphere colliders, rigid bodies), and audio via rodio.
+Pixli is a 3D game engine built in Rust with **wgpu** for cross-platform graphics (Vulkan, OpenGL fallback, DirectX 12, Metal). It provides an entity-component system (ECS), PBR lighting with shadows, SSAO, bloom, unlit/lit pipelines, physics (AABB/sphere colliders, rigid bodies), and optional audio via rodio.
 
 ### Key Features
 
@@ -31,8 +31,10 @@ Pixli is a 3D game engine built in Rust with **wgpu** for cross-platform graphic
 ## <a id="requirements"></a>Requirements
 
 - **Rust** 1.75 or later
-- **GPU** with Vulkan 1.2, DirectX 12, or Metal support
+- **GPU** with Vulkan 1.2, OpenGL fallback on Linux, DirectX 12, or Metal support
 - **Windows / Linux / macOS** (wgpu backends)
+- **Linux desktop**: X11 and Wayland are enabled in the build; GNOME, KDE Plasma, wlroots compositors, and XWayland sessions use native winit integration.
+- **Linux audio feature**: install ALSA development files first, for example `sudo apt install libasound2-dev pkg-config`, then build with `--features audio`.
 
 ## <a id="installation"></a>Installation
 
@@ -40,6 +42,12 @@ Pixli is a 3D game engine built in Rust with **wgpu** for cross-platform graphic
 git clone https://github.com/your-username/pixli.git
 cd pixli
 cargo build --release
+```
+
+The release build includes the shooter game binary:
+
+```bash
+cargo run --release
 ```
 
 ## <a id="usage"></a>Usage
@@ -84,6 +92,12 @@ fn update(state: &mut GameState) {
 
 ```bash
 cargo run --release --example shooter
+```
+
+With audio enabled:
+
+```bash
+cargo run --release --features audio --example shooter
 ```
 
 Controls: WASD move, mouse aim, LMB fire, Space jump, ESC release mouse or quit.

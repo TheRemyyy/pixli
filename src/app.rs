@@ -11,7 +11,7 @@ use winit::{
     event::{DeviceEvent, ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
-    window::{CursorGrabMode, Window, WindowId},
+    window::{Window, WindowId},
 };
 
 use crate::audio::Audio;
@@ -19,6 +19,10 @@ use crate::ecs::World;
 use crate::error::{Error, Result};
 use crate::input::{Input, MouseButton};
 use crate::physics::Physics;
+use crate::platform::{
+    apply_platform_window_attributes, capture_cursor, graphics_backends, release_cursor,
+    select_present_mode,
+};
 use crate::renderer::Renderer;
 use crate::time::Time;
 use crate::window::{Window as EngineWindow, WindowConfig};
@@ -71,6 +75,12 @@ impl App {
         self
     }
 
+    /// Set desktop app id / WM_CLASS for Linux desktops.
+    pub fn with_app_id(mut self, app_id: impl Into<String>) -> Self {
+        self.config.app_id = app_id.into();
+        self
+    }
+
     /// Set window size
     pub fn with_size(mut self, width: u32, height: u32) -> Self {
         self.config.width = width;
@@ -87,6 +97,12 @@ impl App {
     /// Set vsync
     pub fn with_vsync(mut self, vsync: bool) -> Self {
         self.config.vsync = vsync;
+        self
+    }
+
+    /// Set native window decorations.
+    pub fn with_decorated(mut self, decorated: bool) -> Self {
+        self.config.decorated = decorated;
         self
     }
 
@@ -259,6 +275,8 @@ impl ApplicationHandler for AppState {
                 .with_title(&self.config.title)
                 .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
                 .with_resizable(self.config.resizable);
+            let window_attrs =
+                apply_platform_window_attributes(window_attrs, &self.config, event_loop);
 
             let window = match event_loop.create_window(window_attrs) {
                 Ok(w) => Arc::new(w),
@@ -269,7 +287,7 @@ impl ApplicationHandler for AppState {
             };
 
             let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-                backends: wgpu::Backends::VULKAN | wgpu::Backends::DX12 | wgpu::Backends::METAL,
+                backends: graphics_backends(),
                 ..Default::default()
             });
 
@@ -347,11 +365,7 @@ impl ApplicationHandler for AppState {
                 }
             };
 
-            let present_mode = if self.config.vsync {
-                wgpu::PresentMode::AutoVsync
-            } else {
-                wgpu::PresentMode::Immediate
-            };
+            let present_mode = select_present_mode(self.config.vsync, &surface_caps.present_modes);
 
             let size = window.inner_size();
             let surface_config = wgpu::SurfaceConfiguration {
@@ -405,8 +419,9 @@ impl ApplicationHandler for AppState {
                 if !focused {
                     // Release mouse on focus loss
                     if let Some(window) = &self.window {
-                        let _ = window.set_cursor_grab(CursorGrabMode::None);
-                        window.set_cursor_visible(true);
+                        if let Err(err) = release_cursor(window) {
+                            log::warn!("{err}");
+                        }
                         self.input.set_mouse_captured(false);
                     }
                 }
@@ -430,8 +445,9 @@ impl ApplicationHandler for AppState {
                 if key_code == KeyCode::Escape && state == ElementState::Pressed {
                     if self.input.is_mouse_captured() {
                         if let Some(window) = &self.window {
-                            let _ = window.set_cursor_grab(CursorGrabMode::None);
-                            window.set_cursor_visible(true);
+                            if let Err(err) = release_cursor(window) {
+                                log::warn!("{err}");
+                            }
                             self.input.set_mouse_captured(false);
                         }
                     } else {
@@ -449,11 +465,10 @@ impl ApplicationHandler for AppState {
                         // Capture mouse on click
                         if !self.input.is_mouse_captured() {
                             if let Some(window) = &self.window {
-                                let _ = window
-                                    .set_cursor_grab(CursorGrabMode::Confined)
-                                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked));
-                                window.set_cursor_visible(false);
-                                self.input.set_mouse_captured(true);
+                                match capture_cursor(window) {
+                                    Ok(()) => self.input.set_mouse_captured(true),
+                                    Err(err) => log::warn!("{err}"),
+                                }
                             }
                         }
                     }

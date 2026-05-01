@@ -1,11 +1,13 @@
 //! Window management.
 
 use crate::math::Vec2;
+use crate::platform::constants::DEFAULT_APP_ID;
 
 /// Window configuration.
 #[derive(Clone)]
 pub struct WindowConfig {
     pub title: String,
+    pub app_id: String,
     pub width: u32,
     pub height: u32,
     pub resizable: bool,
@@ -18,6 +20,7 @@ impl Default for WindowConfig {
     fn default() -> Self {
         Self {
             title: "Pixel Engine".to_string(),
+            app_id: DEFAULT_APP_ID.to_string(),
             width: 1280,
             height: 720,
             resizable: true,
@@ -43,6 +46,11 @@ impl WindowConfig {
         self
     }
 
+    pub fn with_app_id(mut self, app_id: impl Into<String>) -> Self {
+        self.app_id = app_id.into();
+        self
+    }
+
     pub fn with_size(mut self, width: u32, height: u32) -> Self {
         self.width = width;
         self.height = height;
@@ -61,6 +69,11 @@ impl WindowConfig {
 
     pub fn with_vsync(mut self, vsync: bool) -> Self {
         self.vsync = vsync;
+        self
+    }
+
+    pub fn with_decorated(mut self, decorated: bool) -> Self {
+        self.decorated = decorated;
         self
     }
 }

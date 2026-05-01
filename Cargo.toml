@@ -4,24 +4,29 @@ version = "0.1.0"
 edition = "2021"
 description = "A simple yet powerful 3D game engine in Rust"
 license = "MIT"
+default-run = "pixli-shooter"
 
 [dependencies]
 wgpu = "23"
 thiserror = "2"
-winit = "0.30"
+winit = { version = "0.30", features = ["x11", "wayland"] }
 pollster = "0.4"
 bytemuck = { version = "1.14", features = ["derive"] }
 cgmath = "0.18"
 log = "0.4"
 env_logger = "0.11"
 image = "0.25"
-rodio = "0.19"
 rand = "0.8.5"
 parking_lot = "0.12.2"
 wide = "0.7.5"
+rodio = { version = "0.19", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
+
+[features]
+default = []
+audio = ["dep:rodio"]
 
 [[example]]
 name = "shooter"

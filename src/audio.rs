@@ -1,9 +1,11 @@
 //! Audio: sound effects and music (rodio).
 
-use std::io::Cursor;
 use std::sync::Arc;
 
+#[cfg(feature = "audio")]
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
+#[cfg(feature = "audio")]
+use std::io::Cursor;
 
 /// Audio source handle (decoded from file or bytes).
 #[derive(Clone)]
@@ -30,12 +32,21 @@ impl AudioSource {
 
 /// Sound handle for controlling playback.
 pub struct Sound {
+    #[cfg(feature = "audio")]
     sink: Option<Arc<Sink>>,
 }
 
 impl Sound {
+    fn silent() -> Self {
+        Self {
+            #[cfg(feature = "audio")]
+            sink: None,
+        }
+    }
+
     /// Stop playback.
     pub fn stop(&self) {
+        #[cfg(feature = "audio")]
         if let Some(sink) = &self.sink {
             sink.stop();
         }
@@ -43,6 +54,7 @@ impl Sound {
 
     /// Pause playback.
     pub fn pause(&self) {
+        #[cfg(feature = "audio")]
         if let Some(sink) = &self.sink {
             sink.pause();
         }
@@ -50,6 +62,7 @@ impl Sound {
 
     /// Resume playback.
     pub fn play(&self) {
+        #[cfg(feature = "audio")]
         if let Some(sink) = &self.sink {
             sink.play();
         }
@@ -57,6 +70,8 @@ impl Sound {
 
     /// Set volume (0.0–1.0).
     pub fn set_volume(&self, volume: f32) {
+        let _ = volume.clamp(0.0, 1.0);
+        #[cfg(feature = "audio")]
         if let Some(sink) = &self.sink {
             sink.set_volume(volume.clamp(0.0, 1.0));
         }
@@ -64,16 +79,27 @@ impl Sound {
 
     /// Returns true if there are still samples to play.
     pub fn is_playing(&self) -> bool {
-        self.sink
-            .as_ref()
-            .map(|sink| !sink.empty())
-            .unwrap_or(false)
+        #[cfg(feature = "audio")]
+        {
+            return self
+                .sink
+                .as_ref()
+                .map(|sink| !sink.empty())
+                .unwrap_or(false);
+        }
+
+        #[cfg(not(feature = "audio"))]
+        {
+            false
+        }
     }
 }
 
 /// Audio system (holds default output stream; play creates sinks).
 pub struct Audio {
+    #[cfg(feature = "audio")]
     _stream: Option<OutputStream>,
+    #[cfg(feature = "audio")]
     stream_handle: Option<OutputStreamHandle>,
     master_volume: f32,
     music_volume: f32,
@@ -83,6 +109,7 @@ pub struct Audio {
 impl Audio {
     /// Create audio; uses default output device if available.
     pub fn new() -> Self {
+        #[cfg(feature = "audio")]
         let (output_stream, stream_handle) = match OutputStream::try_default() {
             Ok(pair) => (Some(pair.0), Some(pair.1)),
             Err(e) => {
@@ -91,7 +118,9 @@ impl Audio {
             }
         };
         Self {
+            #[cfg(feature = "audio")]
             _stream: output_stream,
+            #[cfg(feature = "audio")]
             stream_handle,
             master_volume: 1.0,
             music_volume: 1.0,
@@ -106,63 +135,84 @@ impl Audio {
 
     /// Play a sound effect with volume (0.0–1.0).
     pub fn play_volume(&self, source: &AudioSource, volume: f32) -> Sound {
-        let handle = match self.stream_handle.as_ref() {
-            Some(h) => h,
-            None => return Sound { sink: None },
-        };
-        let sink = match Sink::try_new(handle) {
-            Ok(s) => s,
-            Err(e) => {
-                log::warn!("Audio: failed to create sink: {}", e);
-                return Sound { sink: None };
-            }
-        };
-        let bytes = source.data.as_ref().to_vec();
-        let cursor = Cursor::new(bytes);
-        let decoder = match Decoder::new(cursor) {
-            Ok(d) => d,
-            Err(e) => {
-                log::warn!("Audio: decode failed: {}", e);
-                return Sound { sink: None };
-            }
-        };
-        let vol = (volume * self.sfx_volume * self.master_volume).clamp(0.0, 1.0);
-        sink.append(decoder.convert_samples::<f32>().amplify(vol));
-        sink.detach(); // keep playing after caller drops Sound
-        Sound { sink: None }
+        let volume = volume.clamp(0.0, 1.0);
+
+        #[cfg(not(feature = "audio"))]
+        {
+            let _ = source.data.len();
+            let _ = volume;
+            return Sound::silent();
+        }
+
+        #[cfg(feature = "audio")]
+        {
+            let handle = match self.stream_handle.as_ref() {
+                Some(h) => h,
+                None => return Sound::silent(),
+            };
+            let sink = match Sink::try_new(handle) {
+                Ok(s) => s,
+                Err(e) => {
+                    log::warn!("Audio: failed to create sink: {}", e);
+                    return Sound::silent();
+                }
+            };
+            let bytes = source.data.as_ref().to_vec();
+            let cursor = Cursor::new(bytes);
+            let decoder = match Decoder::new(cursor) {
+                Ok(d) => d,
+                Err(e) => {
+                    log::warn!("Audio: decode failed: {}", e);
+                    return Sound::silent();
+                }
+            };
+            let vol = volume * self.sfx_volume * self.master_volume;
+            sink.append(decoder.convert_samples::<f32>().amplify(vol));
+            sink.detach(); // keep playing after caller drops Sound
+            Sound::silent()
+        }
     }
 
     /// Play music (looping).
     pub fn play_music(&self, source: &AudioSource) -> Sound {
-        let handle = match self.stream_handle.as_ref() {
-            Some(h) => h,
-            None => return Sound { sink: None },
-        };
-        let sink = match Sink::try_new(handle) {
-            Ok(s) => s,
-            Err(e) => {
-                log::warn!("Audio: failed to create sink: {}", e);
-                return Sound { sink: None };
+        #[cfg(not(feature = "audio"))]
+        {
+            let _ = source.data.len();
+            return Sound::silent();
+        }
+
+        #[cfg(feature = "audio")]
+        {
+            let handle = match self.stream_handle.as_ref() {
+                Some(h) => h,
+                None => return Sound::silent(),
+            };
+            let sink = match Sink::try_new(handle) {
+                Ok(s) => s,
+                Err(e) => {
+                    log::warn!("Audio: failed to create sink: {}", e);
+                    return Sound::silent();
+                }
+            };
+            let bytes = source.data.as_ref().to_vec();
+            let cursor = Cursor::new(bytes);
+            let decoder = match Decoder::new(cursor) {
+                Ok(d) => d,
+                Err(e) => {
+                    log::warn!("Audio: decode failed: {}", e);
+                    return Sound::silent();
+                }
+            };
+            let vol = (self.music_volume * self.master_volume).clamp(0.0, 1.0);
+            sink.append(
+                decoder
+                    .convert_samples::<f32>()
+                    .amplify(vol)
+                    .repeat_infinite(),
+            );
+            Sound {
+                sink: Some(Arc::new(sink)),
             }
-        };
-        let bytes = source.data.as_ref().to_vec();
-        let cursor = Cursor::new(bytes);
-        let decoder = match Decoder::new(cursor) {
-            Ok(d) => d,
-            Err(e) => {
-                log::warn!("Audio: decode failed: {}", e);
-                return Sound { sink: None };
-            }
-        };
-        let vol = (self.music_volume * self.master_volume).clamp(0.0, 1.0);
-        sink.append(
-            decoder
-                .convert_samples::<f32>()
-                .amplify(vol)
-                .repeat_infinite(),
-        );
-        Sound {
-            sink: Some(Arc::new(sink)),
         }
     }
 

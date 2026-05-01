@@ -39,6 +39,7 @@ pub mod error;
 pub mod input;
 pub mod math;
 pub mod physics;
+pub mod platform;
 pub mod renderer;
 pub mod time;
 pub mod window;
