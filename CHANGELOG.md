@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Audio** — Rodio output is behind the `audio` feature so Linux library and release-game builds do not require ALSA development headers unless sound is enabled.
 - **Graphics** — Non-Vulkan wgpu backends are rejected at startup; Pixli now requires a Vulkan adapter.
 - **Quality presets** — Shadows, SSAO, and bloom now use explicit quality settings; shooter enables SSAO and bloom by default.
+- **Renderer CPU overhead** — Bloom render target views and lit entity collection now reuse cached allocations instead of recreating per frame.
 
 ## [0.1.0] — Initial release
 

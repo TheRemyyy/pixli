@@ -12,8 +12,8 @@ pub(super) fn run_bloom(
     blur_pipe: Option<&wgpu::RenderPipeline>,
     bind_groups: Option<&(wgpu::BindGroup, wgpu::BindGroup, wgpu::BindGroup)>,
     params_buf: Option<&wgpu::Buffer>,
-    bloom_a: Option<&wgpu::Texture>,
-    bloom_b: Option<&wgpu::Texture>,
+    bloom_a_view: Option<&wgpu::TextureView>,
+    bloom_b_view: Option<&wgpu::TextureView>,
     pvb: Option<&wgpu::Buffer>,
 ) {
     if enable_bloom {
@@ -22,22 +22,20 @@ pub(super) fn run_bloom(
             Some(blur_pipe),
             Some((bg_extract, bg_blur_a, bg_blur_b)),
             Some(params_buf),
-            Some(bloom_a),
-            Some(bloom_b),
+            Some(bloom_a_view),
+            Some(bloom_b_view),
             Some(pvb),
         ) = (
             extract_pipe,
             blur_pipe,
             bind_groups,
             params_buf,
-            bloom_a,
-            bloom_b,
+            bloom_a_view,
+            bloom_b_view,
             pvb,
         ) {
             let (w, _h) = size;
             let texel = [1.0 / w as f32, 1.0 / size.1 as f32];
-            let bloom_a_view = bloom_a.create_view(&Default::default());
-            let bloom_b_view = bloom_b.create_view(&Default::default());
 
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Bloom Extract"),
@@ -123,8 +121,7 @@ pub(super) fn run_bloom(
                 drop(pass);
             }
         }
-    } else if let Some(bloom_a) = bloom_a {
-        let bloom_a_view = bloom_a.create_view(&Default::default());
+    } else if let Some(bloom_a_view) = bloom_a_view {
         let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Bloom Clear"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

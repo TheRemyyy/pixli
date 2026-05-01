@@ -78,6 +78,7 @@ pub struct Renderer {
     unlit_uniform_scratch: Vec<u8>,
     /// Scratch buffer for packing lit uniforms (256 bytes per entity).
     lit_uniform_scratch: Vec<u8>,
+    lit_entity_scratch: Vec<Entity>,
     // Shadow mapping.
     shadow_map_texture: Option<wgpu::Texture>,
     shadow_map_view: Option<wgpu::TextureView>,
@@ -107,6 +108,7 @@ pub struct Renderer {
     bloom_texture_a: Option<wgpu::Texture>,
     bloom_texture_a_view: Option<wgpu::TextureView>,
     bloom_texture_b: Option<wgpu::Texture>,
+    bloom_texture_b_view: Option<wgpu::TextureView>,
     bloom_extract_pipeline: Option<wgpu::RenderPipeline>,
     bloom_blur_pipeline: Option<wgpu::RenderPipeline>,
     bloom_blur_params_buffer: Option<wgpu::Buffer>,
@@ -177,6 +179,7 @@ impl Renderer {
                 MAX_UNLIT_DRAWS * UNLIT_INSTANCE_SIZE as usize,
             ),
             lit_uniform_scratch: Vec::with_capacity(MAX_LIT_DRAWS * LIT_UNIFORM_STRIDE as usize),
+            lit_entity_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             shadow_map_texture: None,
             shadow_map_view: None,
             shadow_sampler: None,
@@ -204,6 +207,7 @@ impl Renderer {
             bloom_texture_a: None,
             bloom_texture_a_view: None,
             bloom_texture_b: None,
+            bloom_texture_b_view: None,
             bloom_extract_pipeline: None,
             bloom_blur_pipeline: None,
             bloom_blur_params_buffer: None,
@@ -482,6 +486,7 @@ impl Renderer {
         self.bloom_texture_a = Some(bloom_a);
         self.bloom_texture_b = Some(bloom_b);
         self.bloom_texture_a_view = Some(bloom_a_view);
+        self.bloom_texture_b_view = Some(bloom_b_view);
 
         // SSAO textures: depth (1 sample), AO output, AO blur.
         let depth_ssao = device.create_texture(&wgpu::TextureDescriptor {
@@ -745,12 +750,15 @@ impl Renderer {
         let view_matrix = self.camera.view_matrix();
         let proj_matrix = self.camera.projection_matrix();
         let view_proj = proj_matrix * view_matrix;
-        let lit_entities: Vec<_> = world
-            .query::<(&Transform, &Mesh)>()
-            .iter()
-            .take(MAX_LIT_DRAWS)
-            .collect();
         let (batches, entity_order) = self.build_unlit_batches(world, view_proj);
+        self.lit_entity_scratch.clear();
+        self.lit_entity_scratch.extend(
+            world
+                .query::<(&Transform, &Mesh)>()
+                .iter()
+                .take(MAX_LIT_DRAWS),
+        );
+        let lit_entities = &self.lit_entity_scratch;
 
         let Some(device) = &self.device else { return };
         let Some(queue) = &self.queue else { return };
@@ -961,8 +969,8 @@ impl Renderer {
             self.bloom_blur_pipeline.as_ref(),
             self.bloom_bind_groups.as_ref(),
             self.bloom_blur_params_buffer.as_ref(),
-            self.bloom_texture_a.as_ref(),
-            self.bloom_texture_b.as_ref(),
+            self.bloom_texture_a_view.as_ref(),
+            self.bloom_texture_b_view.as_ref(),
             self.post_vertex_buffer.as_ref(),
         );
 
