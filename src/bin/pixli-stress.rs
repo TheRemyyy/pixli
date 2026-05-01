@@ -41,12 +41,13 @@ fn setup(world: &mut World, renderer: &mut Renderer) {
     renderer.camera.fov = 55.0_f32.to_radians();
     renderer.camera.far = 500.0;
 
-    renderer.set_msaa(4);
+    renderer.set_msaa(env_u32("PIXLI_STRESS_MSAA").unwrap_or(4));
+    renderer.graphics.render_scale = env_f32("PIXLI_STRESS_RENDER_SCALE").unwrap_or(1.0);
     renderer.graphics.enable_sky = true;
     renderer.graphics.enable_fog = true;
     renderer.graphics.enable_shadows = true;
-    renderer.graphics.enable_ssao = true;
-    renderer.graphics.enable_bloom = true;
+    renderer.graphics.enable_ssao = env_bool("PIXLI_STRESS_SSAO").unwrap_or(true);
+    renderer.graphics.enable_bloom = env_bool("PIXLI_STRESS_BLOOM").unwrap_or(true);
     renderer.graphics.shadow = ShadowSettings::high();
     renderer.graphics.ssao = SsaoSettings::high();
     renderer.graphics.bloom = BloomSettings::high();
@@ -98,4 +99,26 @@ fn orbit_camera(state: &mut GameState) {
     state.renderer.camera.position = Vec3::new(t.cos() * radius, 26.0, t.sin() * radius);
     state.renderer.camera.yaw = t + std::f32::consts::PI;
     state.renderer.camera.pitch = -25.0_f32.to_radians();
+}
+
+fn env_bool(name: &str) -> Option<bool> {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| match value.to_ascii_lowercase().as_str() {
+            "1" | "true" | "on" | "yes" => Some(true),
+            "0" | "false" | "off" | "no" => Some(false),
+            _ => None,
+        })
+}
+
+fn env_u32(name: &str) -> Option<u32> {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+}
+
+fn env_f32(name: &str) -> Option<f32> {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<f32>().ok())
 }

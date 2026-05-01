@@ -48,6 +48,16 @@ struct RenderCpuFrame {
     visible_unlit: usize,
     culled_lit: usize,
     culled_unlit: usize,
+    draw_calls: u32,
+    triangles: u64,
+    instances: u32,
+    lit_batches: u32,
+    unlit_batches: u32,
+    shadow_casters: u32,
+    lights: u32,
+    internal_width: u32,
+    internal_height: u32,
+    shadow_map_size: u32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -84,6 +94,16 @@ struct RenderCpuStats {
     visible_unlit: usize,
     culled_lit: usize,
     culled_unlit: usize,
+    draw_calls: u64,
+    triangles: u64,
+    instances: u64,
+    lit_batches: u64,
+    unlit_batches: u64,
+    shadow_casters: u64,
+    lights: u64,
+    internal_width: u64,
+    internal_height: u64,
+    shadow_map_size: u64,
 }
 
 impl RenderCpuStats {
@@ -100,6 +120,16 @@ impl RenderCpuStats {
         self.visible_unlit += frame.visible_unlit;
         self.culled_lit += frame.culled_lit;
         self.culled_unlit += frame.culled_unlit;
+        self.draw_calls += u64::from(frame.draw_calls);
+        self.triangles += frame.triangles;
+        self.instances += u64::from(frame.instances);
+        self.lit_batches += u64::from(frame.lit_batches);
+        self.unlit_batches += u64::from(frame.unlit_batches);
+        self.shadow_casters += u64::from(frame.shadow_casters);
+        self.lights += u64::from(frame.lights);
+        self.internal_width += u64::from(frame.internal_width);
+        self.internal_height += u64::from(frame.internal_height);
+        self.shadow_map_size += u64::from(frame.shadow_map_size);
     }
 }
 
@@ -154,7 +184,7 @@ impl RenderCpuProfiler {
 fn format_render_cpu_summary(stats: RenderCpuStats, samples: u32) -> String {
     let samples_usize = samples as usize;
     format!(
-        "cpu-pass avg ms cull={:.3} depth={:.3} shadow={:.3} main={:.3} bloom={:.3} ssao={:.3} post={:.3} submit={:.3}; visible lit={} unlit={} culled lit={} unlit={}",
+        "cpu-pass avg ms cull={:.3} depth={:.3} shadow={:.3} main={:.3} bloom={:.3} ssao={:.3} post={:.3} submit={:.3}; workload draws={} tris={} instances={} lit_batches={} unlit_batches={} shadow_casters={} lights={} res={}x{} shadow_map={}; visible lit={} unlit={} culled lit={} unlit={}",
         stats.cull_sort.average_ms(samples),
         stats.depth.average_ms(samples),
         stats.shadow.average_ms(samples),
@@ -163,6 +193,16 @@ fn format_render_cpu_summary(stats: RenderCpuStats, samples: u32) -> String {
         stats.ssao.average_ms(samples),
         stats.post.average_ms(samples),
         stats.submit.average_ms(samples),
+        stats.draw_calls / u64::from(samples),
+        stats.triangles / u64::from(samples),
+        stats.instances / u64::from(samples),
+        stats.lit_batches / u64::from(samples),
+        stats.unlit_batches / u64::from(samples),
+        stats.shadow_casters / u64::from(samples),
+        stats.lights / u64::from(samples),
+        stats.internal_width / u64::from(samples),
+        stats.internal_height / u64::from(samples),
+        stats.shadow_map_size / u64::from(samples),
         stats.visible_lit / samples_usize,
         stats.visible_unlit / samples_usize,
         stats.culled_lit / samples_usize,
@@ -236,6 +276,74 @@ fn plane_from_rows(row3: [f32; 4], row: [f32; 4], sign: f32) -> Plane {
 
 fn max_scale_component(scale: Vec3) -> f32 {
     scale.x.abs().max(scale.y.abs()).max(scale.z.abs())
+}
+
+fn count_lit_batches(world: &World, lit_entities: &[Entity]) -> u32 {
+    let mut batch_count = 0;
+    let mut current_mesh_id = None;
+    for entity in lit_entities {
+        let Some(mesh) = world.get::<Mesh>(*entity) else {
+            continue;
+        };
+        let mesh_id = mesh.id();
+        if current_mesh_id != Some(mesh_id) {
+            batch_count += 1;
+            current_mesh_id = Some(mesh_id);
+        }
+    }
+    batch_count
+}
+
+fn count_lit_triangles(world: &World, lit_entities: &[Entity]) -> u64 {
+    lit_entities
+        .iter()
+        .filter_map(|entity| world.get::<Mesh>(*entity))
+        .map(|mesh| mesh.vertices.len() as u64 / 3)
+        .sum()
+}
+
+fn count_batched_triangles(batches: &[(u64, u32, u32)], mesh_cache: &HashMap<u64, GpuMesh>) -> u64 {
+    batches
+        .iter()
+        .filter_map(|(mesh_id, _, instance_count)| {
+            mesh_cache
+                .get(mesh_id)
+                .map(|mesh| u64::from(mesh.vertex_count / 3) * u64::from(*instance_count))
+        })
+        .sum()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn estimate_draw_calls(
+    enable_sky: bool,
+    enable_shadows: bool,
+    enable_ssao: bool,
+    enable_bloom: bool,
+    ssao_blur_passes: u32,
+    bloom_blur_passes: u32,
+    lit_batches: u32,
+    unlit_batches: u32,
+) -> u32 {
+    let mut draw_calls = 1; // post composite
+    if enable_sky {
+        draw_calls += 1;
+    }
+    draw_calls += lit_batches + unlit_batches; // main pass
+    if enable_ssao {
+        draw_calls += lit_batches + unlit_batches; // depth prepass
+        draw_calls += 1 + ssao_blur_passes.clamp(1, 8) * 2;
+    } else {
+        draw_calls += 1; // SSAO clear
+    }
+    if enable_shadows {
+        draw_calls += lit_batches;
+    }
+    if enable_bloom {
+        draw_calls += 1 + bloom_blur_passes.clamp(1, 8) * 2;
+    } else {
+        draw_calls += 1; // bloom clear
+    }
+    draw_calls
 }
 
 /// Main renderer.
@@ -1022,10 +1130,37 @@ impl Renderer {
                 .map(|(_, entity)| *entity),
         );
         let lit_entities = &self.lit_entity_scratch;
+        let lit_batch_count = count_lit_batches(world, lit_entities);
+        let unlit_batch_count = batches.len() as u32;
         frame_profile.visible_lit = lit_entities.len();
         frame_profile.visible_unlit = entity_order.len();
         frame_profile.culled_lit = total_lit.saturating_sub(lit_entities.len());
         frame_profile.culled_unlit = total_unlit.saturating_sub(entity_order.len());
+        frame_profile.lit_batches = lit_batch_count;
+        frame_profile.unlit_batches = unlit_batch_count;
+        frame_profile.instances = (lit_entities.len() + entity_order.len()) as u32;
+        frame_profile.triangles = count_lit_triangles(world, lit_entities)
+            + count_batched_triangles(&batches, &self.unlit_mesh_cache);
+        frame_profile.shadow_casters =
+            if self.graphics.enable_shadows && self.directional_light.is_some() {
+                lit_entities.len() as u32
+            } else {
+                0
+            };
+        frame_profile.lights = u32::from(self.directional_light.is_some());
+        frame_profile.internal_width = self.size.0;
+        frame_profile.internal_height = self.size.1;
+        frame_profile.shadow_map_size = self.graphics.shadow.map_size;
+        frame_profile.draw_calls = estimate_draw_calls(
+            self.graphics.enable_sky,
+            self.graphics.enable_shadows,
+            self.graphics.enable_ssao,
+            self.graphics.enable_bloom,
+            self.graphics.ssao.blur_passes,
+            self.graphics.bloom.blur_passes,
+            lit_batch_count,
+            unlit_batch_count,
+        );
         frame_profile.cull_sort = cull_sort_start.elapsed();
 
         let Some(device) = &self.device else { return };

@@ -272,6 +272,7 @@ impl AppState {
         }
 
         self.initialized = true;
+        self.last_frame = Instant::now();
     }
 }
 

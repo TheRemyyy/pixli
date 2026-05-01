@@ -15,6 +15,10 @@ pub fn select_present_mode(
     vsync: bool,
     supported_modes: &[wgpu::PresentMode],
 ) -> wgpu::PresentMode {
+    if let Some(mode) = forced_present_mode(supported_modes) {
+        return mode;
+    }
+
     let preferred_modes = if vsync {
         [
             wgpu::PresentMode::AutoVsync,
@@ -40,6 +44,30 @@ pub fn select_present_mode(
         })
         .or_else(|| supported_modes.first().copied())
         .unwrap_or(wgpu::PresentMode::Fifo)
+}
+
+fn forced_present_mode(supported_modes: &[wgpu::PresentMode]) -> Option<wgpu::PresentMode> {
+    let forced = std::env::var("PIXLI_PRESENT_MODE").ok()?;
+    let requested = match forced.to_ascii_lowercase().as_str() {
+        "immediate" => wgpu::PresentMode::Immediate,
+        "mailbox" => wgpu::PresentMode::Mailbox,
+        "fifo" => wgpu::PresentMode::Fifo,
+        "fifo_relaxed" | "fiforelaxed" => wgpu::PresentMode::FifoRelaxed,
+        "auto_vsync" | "autovsync" => wgpu::PresentMode::AutoVsync,
+        "auto_no_vsync" | "autonovsync" => wgpu::PresentMode::AutoNoVsync,
+        other => {
+            log::warn!("Unsupported PIXLI_PRESENT_MODE={other}, using automatic selection");
+            return None;
+        }
+    };
+    if supported_modes.contains(&requested) {
+        Some(requested)
+    } else {
+        log::warn!(
+            "Requested PIXLI_PRESENT_MODE={forced} is not supported by this surface, using automatic selection"
+        );
+        None
+    }
 }
 
 /// Select swapchain frame latency. Two queued frames is the throughput default on tested Vulkan
