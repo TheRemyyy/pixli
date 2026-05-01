@@ -26,7 +26,7 @@ pub use types::{
 
 use constants::*;
 use gpu_profiler::GpuProfiler;
-use types::{SkyUniform, UnlitSceneUniform};
+use types::{LitInstance, SkyUniform, UnlitSceneUniform};
 
 use crate::ecs::{Entity, World};
 use crate::math::{Color, Mat4, Transform, Vec3};
@@ -54,6 +54,7 @@ pub struct Renderer {
     /// Lit uniform buffer: one slot per entity (dynamic offset), stride is LIT_UNIFORM_STRIDE.
     uniform_buffer: Option<wgpu::Buffer>,
     uniform_bind_group: Option<wgpu::BindGroup>,
+    lit_instance_buffer: Option<wgpu::Buffer>,
     depth_texture: Option<wgpu::TextureView>,
     msaa_texture: Option<wgpu::TextureView>,
     mesh_cache: HashMap<u64, GpuMesh>,
@@ -79,6 +80,8 @@ pub struct Renderer {
     /// Scratch buffer for packing lit uniforms (256 bytes per entity).
     lit_uniform_scratch: Vec<u8>,
     lit_entity_scratch: Vec<Entity>,
+    lit_instance_scratch: Vec<LitInstance>,
+    lit_batch_scratch: Vec<(u64, u32, u32)>,
     // Shadow mapping.
     shadow_map_texture: Option<wgpu::Texture>,
     shadow_map_view: Option<wgpu::TextureView>,
@@ -158,6 +161,7 @@ impl Renderer {
             pipeline: None,
             uniform_buffer: None,
             uniform_bind_group: None,
+            lit_instance_buffer: None,
             depth_texture: None,
             msaa_texture: None,
             mesh_cache: HashMap::new(),
@@ -180,6 +184,8 @@ impl Renderer {
             ),
             lit_uniform_scratch: Vec::with_capacity(MAX_LIT_DRAWS * LIT_UNIFORM_STRIDE as usize),
             lit_entity_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
+            lit_instance_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
+            lit_batch_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             shadow_map_texture: None,
             shadow_map_view: None,
             shadow_sampler: None,
@@ -275,6 +281,12 @@ impl Renderer {
         );
         self.uniform_buffer = Some(r.uniform_buffer);
         self.uniform_bind_group = Some(r.uniform_bind_group);
+        self.lit_instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Lit Instance Buffer"),
+            size: LIT_INSTANCE_BUFFER_SIZE,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }));
         self.pipeline = Some(r.pipeline);
         self.lit_pipeline_layout = Some(r.lit_pipeline_layout);
         self.lit_shadow_bind_group_layout = Some(r.lit_shadow_bind_group_layout);
@@ -771,6 +783,9 @@ impl Renderer {
         let Some(uniform_bind_group) = &self.uniform_bind_group else {
             return;
         };
+        let Some(lit_instance_buffer) = &self.lit_instance_buffer else {
+            return;
+        };
         let Some(depth_texture) = &self.depth_texture else {
             return;
         };
@@ -946,8 +961,11 @@ impl Renderer {
             unlit_bind_group,
             &self.unlit_mesh_cache,
             &mut self.lit_uniform_scratch,
+            &mut self.lit_instance_scratch,
+            &mut self.lit_batch_scratch,
             uniform_buffer,
             uniform_bind_group,
+            lit_instance_buffer,
             pipeline,
             lit_shadow_bind_group,
             self.lit_normal_bind_group.as_ref(),
@@ -1254,8 +1272,11 @@ fn run_main_pass(
     unlit_bind_group: &wgpu::BindGroup,
     unlit_mesh_cache: &HashMap<u64, GpuMesh>,
     lit_uniform_scratch: &mut Vec<u8>,
+    lit_instance_scratch: &mut Vec<LitInstance>,
+    lit_batch_scratch: &mut Vec<(u64, u32, u32)>,
     uniform_buffer: &wgpu::Buffer,
     uniform_bind_group: &wgpu::BindGroup,
+    lit_instance_buffer: &wgpu::Buffer,
     pipeline: &wgpu::RenderPipeline,
     lit_shadow_bind_group: Option<&wgpu::BindGroup>,
     lit_normal_bind_group: Option<&wgpu::BindGroup>,
@@ -1343,12 +1364,39 @@ fn run_main_pass(
     }
 
     if !lit_entities.is_empty() {
-        lit_uniform_scratch.resize(lit_entities.len() * LIT_UNIFORM_STRIDE as usize, 0);
-        for (i, entity) in lit_entities.iter().enumerate() {
+        let (fs, fe, fcol) = if enable_fog {
+            (fog_start, fog_end, [fog_color.r, fog_color.g, fog_color.b])
+        } else {
+            (1e9, 2e9, [0.0, 0.0, 0.0])
+        };
+        let scene_uniform = Uniforms {
+            mvp: Mat4::IDENTITY.to_cols_array(),
+            model: Mat4::IDENTITY.to_cols_array(),
+            view_pos: [camera_position.x, camera_position.y, camera_position.z, 1.0],
+            color: Color::WHITE.to_array(),
+            ambient: ambient_light.to_array(),
+            light_dir: [light_dir.x, light_dir.y, light_dir.z, 0.0],
+            light_color: [light_color.r, light_color.g, light_color.b, light_intensity],
+            fog_start: fs,
+            fog_end: fe,
+            fog_color: fcol,
+            metallic: 0.0,
+            roughness: 0.5,
+            emission: [0.0, 0.0, 0.0, 1.0],
+            emission_strength: 0.0,
+            _pad: [0.0, 0.0],
+        };
+        let scene_uniforms = [scene_uniform];
+        queue.write_buffer(uniform_buffer, 0, bytemuck::cast_slice(&scene_uniforms));
+
+        lit_instance_scratch.clear();
+        lit_batch_scratch.clear();
+        let mut current_mesh_id = None;
+        for entity in lit_entities.iter() {
             let Some(transform) = world.get::<Transform>(*entity) else {
                 continue;
             };
-            let Some(_) = world.get::<Mesh>(*entity) else {
+            let Some(mesh) = world.get::<Mesh>(*entity) else {
                 continue;
             };
             let material = world.get::<Material>(*entity);
@@ -1358,54 +1406,53 @@ fn run_main_pass(
             let (emission, emission_strength) = material
                 .map(|m| (m.emission.to_array(), m.emission_strength))
                 .unwrap_or(([0.0, 0.0, 0.0, 1.0], 0.0));
-            let (fs, fe, fcol) = if enable_fog {
-                (fog_start, fog_end, [fog_color.r, fog_color.g, fog_color.b])
-            } else {
-                (1e9, 2e9, [0.0, 0.0, 0.0])
-            };
-            let uniforms = Uniforms {
+            let mesh_id = mesh.id();
+            let instance_index = lit_instance_scratch.len() as u32;
+            match current_mesh_id {
+                Some(active_mesh_id) if active_mesh_id == mesh_id => {
+                    if let Some((_, _, count)) = lit_batch_scratch.last_mut() {
+                        *count += 1;
+                    }
+                }
+                _ => {
+                    lit_batch_scratch.push((mesh_id, instance_index, 1));
+                    current_mesh_id = Some(mesh_id);
+                }
+            }
+            lit_instance_scratch.push(LitInstance {
                 mvp: mvp.to_cols_array(),
                 model: model.to_cols_array(),
-                view_pos: [camera_position.x, camera_position.y, camera_position.z, 1.0],
                 color: color.to_array(),
-                ambient: ambient_light.to_array(),
-                light_dir: [light_dir.x, light_dir.y, light_dir.z, 0.0],
-                light_color: [light_color.r, light_color.g, light_color.b, light_intensity],
-                fog_start: fs,
-                fog_end: fe,
-                fog_color: fcol,
-                metallic: material.map(|m| m.metallic).unwrap_or(0.0),
-                roughness: material.map(|m| m.roughness).unwrap_or(0.5),
+                material: [
+                    material.map(|m| m.metallic).unwrap_or(0.0),
+                    material.map(|m| m.roughness).unwrap_or(0.5),
+                    emission_strength,
+                    0.0,
+                ],
                 emission,
-                emission_strength,
-                _pad: [0.0, 0.0],
-            };
-            let slot_start = i * LIT_UNIFORM_STRIDE as usize;
-            let uniforms_arr = [uniforms];
-            let bytes = bytemuck::cast_slice(&uniforms_arr);
-            lit_uniform_scratch[slot_start..slot_start + bytes.len()].copy_from_slice(bytes);
+            });
         }
-        queue.write_buffer(
-            uniform_buffer,
-            0,
-            &lit_uniform_scratch[..lit_entities.len() * LIT_UNIFORM_STRIDE as usize],
-        );
-        render_pass.set_pipeline(pipeline);
-        if let Some(lit_shadow_bg) = lit_shadow_bind_group {
-            render_pass.set_bind_group(1, lit_shadow_bg, &[]);
-        }
-        if let Some(lit_normal_bg) = lit_normal_bind_group {
-            render_pass.set_bind_group(2, lit_normal_bg, &[]);
-        }
-        for (i, entity) in lit_entities.iter().enumerate() {
-            let Some(mesh) = world.get::<Mesh>(*entity) else {
-                continue;
-            };
-            let offset = (i as u64) * LIT_UNIFORM_STRIDE;
-            render_pass.set_bind_group(0, uniform_bind_group, &[offset as u32]);
-            if let Some(gpu_mesh) = mesh_cache.get(&mesh.id()) {
-                render_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
-                render_pass.draw(0..gpu_mesh.vertex_count, 0..1);
+        if !lit_instance_scratch.is_empty() {
+            lit_uniform_scratch.clear();
+            queue.write_buffer(
+                lit_instance_buffer,
+                0,
+                bytemuck::cast_slice(lit_instance_scratch),
+            );
+            render_pass.set_pipeline(pipeline);
+            render_pass.set_bind_group(0, uniform_bind_group, &[0]);
+            if let Some(lit_shadow_bg) = lit_shadow_bind_group {
+                render_pass.set_bind_group(1, lit_shadow_bg, &[]);
+            }
+            if let Some(lit_normal_bg) = lit_normal_bind_group {
+                render_pass.set_bind_group(2, lit_normal_bg, &[]);
+            }
+            render_pass.set_vertex_buffer(1, lit_instance_buffer.slice(..));
+            for (mesh_id, start, count) in lit_batch_scratch.iter().copied() {
+                if let Some(gpu_mesh) = mesh_cache.get(&mesh_id) {
+                    render_pass.set_vertex_buffer(0, gpu_mesh.vertex_buffer.slice(..));
+                    render_pass.draw(0..gpu_mesh.vertex_count, start..start + count);
+                }
             }
         }
     }

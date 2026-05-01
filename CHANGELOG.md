@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Graphics** — Non-Vulkan wgpu backends are rejected at startup; Pixli now requires a Vulkan adapter.
 - **Quality presets** — Shadows, SSAO, and bloom now use explicit quality settings; shooter enables SSAO and bloom by default.
 - **Renderer CPU overhead** — Bloom render target views and lit entity collection now reuse cached allocations instead of recreating per frame.
+- **Lit batching** — Main lit pass now uses per-instance vertex data and batches consecutive entities sharing a mesh, reducing draw-call and bind-group overhead without changing shading quality.
 
 ## [0.1.0] — Initial release
 

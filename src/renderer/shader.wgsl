@@ -57,6 +57,17 @@ struct VertexInput {
     @location(2) tangent: vec3<f32>,
     @location(3) uv: vec2<f32>,
     @location(4) color: vec4<f32>,
+    @location(5) instance_mvp_0: vec4<f32>,
+    @location(6) instance_mvp_1: vec4<f32>,
+    @location(7) instance_mvp_2: vec4<f32>,
+    @location(8) instance_mvp_3: vec4<f32>,
+    @location(9) instance_model_0: vec4<f32>,
+    @location(10) instance_model_1: vec4<f32>,
+    @location(11) instance_model_2: vec4<f32>,
+    @location(12) instance_model_3: vec4<f32>,
+    @location(13) instance_color: vec4<f32>,
+    @location(14) instance_material: vec4<f32>,
+    @location(15) instance_emission: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -66,19 +77,35 @@ struct VertexOutput {
     @location(2) world_tangent: vec3<f32>,
     @location(3) uv: vec2<f32>,
     @location(4) color: vec4<f32>,
+    @location(5) material: vec4<f32>,
+    @location(6) emission: vec4<f32>,
 }
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
+    let model = mat4x4<f32>(
+        in.instance_model_0,
+        in.instance_model_1,
+        in.instance_model_2,
+        in.instance_model_3,
+    );
+    let mvp = mat4x4<f32>(
+        in.instance_mvp_0,
+        in.instance_mvp_1,
+        in.instance_mvp_2,
+        in.instance_mvp_3,
+    );
     
-    let world_pos = uniforms.model * vec4<f32>(in.position, 1.0);
-    out.clip_position = uniforms.mvp * vec4<f32>(in.position, 1.0);
+    let world_pos = model * vec4<f32>(in.position, 1.0);
+    out.clip_position = mvp * vec4<f32>(in.position, 1.0);
     out.world_position = world_pos.xyz;
-    out.world_normal = normalize((uniforms.model * vec4<f32>(in.normal, 0.0)).xyz);
-    out.world_tangent = normalize((uniforms.model * vec4<f32>(in.tangent, 0.0)).xyz);
+    out.world_normal = normalize((model * vec4<f32>(in.normal, 0.0)).xyz);
+    out.world_tangent = normalize((model * vec4<f32>(in.tangent, 0.0)).xyz);
     out.uv = in.uv;
-    out.color = in.color;
+    out.color = in.color * in.instance_color;
+    out.material = in.instance_material;
+    out.emission = in.instance_emission;
     
     return out;
 }
@@ -106,9 +133,9 @@ fn pbr_specular(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, F0: vec3<f32>, roughne
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Base color
-    let base_color = uniforms.color * in.color;
-    let metallic = clamp(uniforms.metallic, 0.0, 1.0);
-    let roughness = clamp(uniforms.roughness, 0.04, 1.0);
+    let base_color = in.color;
+    let metallic = clamp(in.material.x, 0.0, 1.0);
+    let roughness = clamp(in.material.y, 0.04, 1.0);
     
     // Normal mapping: sample normal map, build TBN, transform to world space
     let N_raw = textureSample(normal_map, normal_sampler, in.uv).rgb;
@@ -150,7 +177,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var final_color = ambient * base_color.rgb + direct_lighting;
     
     // Emissive: přidej svítící barvu (neony, výstřely)
-    let emissive = uniforms.emission.rgb * uniforms.emission_strength;
+    let emissive = in.emission.rgb * in.material.z;
     final_color += emissive;
     
     // Distance fog (same as unlit)

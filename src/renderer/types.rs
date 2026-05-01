@@ -75,6 +75,84 @@ impl GpuVertex {
     }
 }
 
+/// Per-instance data for lit meshes.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub(crate) struct LitInstance {
+    pub mvp: [[f32; 4]; 4],
+    pub model: [[f32; 4]; 4],
+    pub color: [f32; 4],
+    pub material: [f32; 4],
+    pub emission: [f32; 4],
+}
+
+impl LitInstance {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        const ATTRIBS: [wgpu::VertexAttribute; 11] = [
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 16,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 7,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 48,
+                shader_location: 8,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 64,
+                shader_location: 9,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 80,
+                shader_location: 10,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 96,
+                shader_location: 11,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 112,
+                shader_location: 12,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 128,
+                shader_location: 13,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 144,
+                shader_location: 14,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 160,
+                shader_location: 15,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+        ];
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<LitInstance>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &ATTRIBS,
+        }
+    }
+}
+
 /// Unlit scene uniform (camera and fog).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]

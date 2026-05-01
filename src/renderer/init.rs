@@ -1,7 +1,7 @@
 //! GPU resource creation for the renderer (pipelines, buffers, bind groups).
 
 use super::constants::*;
-use super::types::{GpuVertex, UnlitVertex};
+use super::types::{GpuVertex, LitInstance, UnlitVertex};
 use wgpu::util::DeviceExt;
 
 pub(super) struct GpuResources {
@@ -230,7 +230,7 @@ pub(super) fn create_gpu_resources(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[GpuVertex::desc()],
+            buffers: &[GpuVertex::desc(), LitInstance::desc()],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -1205,7 +1205,7 @@ pub(super) fn recreate_msaa_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[GpuVertex::desc()],
+            buffers: &[GpuVertex::desc(), LitInstance::desc()],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
