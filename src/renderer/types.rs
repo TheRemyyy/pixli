@@ -29,13 +29,22 @@ static UNLIT_MESH_ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::
 pub struct UnlitMesh {
     id: u64,
     pub vertices: Vec<UnlitVertex>,
+    pub bounding_radius: f32,
 }
 
 impl UnlitMesh {
     pub fn from_vertices(vertices: Vec<UnlitVertex>) -> Self {
+        let bounding_radius = vertices
+            .iter()
+            .map(|vertex| {
+                let [x, y, z] = vertex.position;
+                (x * x + y * y + z * z).sqrt()
+            })
+            .fold(0.0, f32::max);
         Self {
             id: UNLIT_MESH_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             vertices,
+            bounding_radius,
         }
     }
     pub fn id(&self) -> u64 {
@@ -238,6 +247,7 @@ pub struct Uniforms {
 pub struct GpuMesh {
     pub vertex_buffer: wgpu::Buffer,
     pub vertex_count: u32,
+    pub bounding_radius: f32,
 }
 
 /// Graphics configuration (MSAA, post process, resolution, and related options).

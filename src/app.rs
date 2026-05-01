@@ -21,7 +21,7 @@ use crate::input::{Input, MouseButton};
 use crate::physics::Physics;
 use crate::platform::{
     apply_platform_window_attributes, capture_cursor, graphics_backends, is_supported_backend,
-    release_cursor, select_present_mode,
+    release_cursor, select_frame_latency, select_present_mode,
 };
 use crate::profiler::{FrameProfile, Profiler};
 use crate::renderer::Renderer;
@@ -171,6 +171,8 @@ struct AppState {
     audio: Audio,
     engine_window: EngineWindow,
     profiler: Profiler,
+    present_mode: Option<wgpu::PresentMode>,
+    frame_latency: u32,
 
     // GPU state
     window: Option<Arc<Window>>,
@@ -209,6 +211,8 @@ impl AppState {
             audio: Audio::new(),
             engine_window: EngineWindow::default(),
             profiler: Profiler::from_env(),
+            present_mode: None,
+            frame_latency: 1,
             window: None,
             surface: None,
             device: None,
@@ -386,6 +390,7 @@ impl ApplicationHandler for AppState {
             };
 
             let present_mode = select_present_mode(self.config.vsync, &surface_caps.present_modes);
+            let frame_latency = select_frame_latency(self.config.vsync);
 
             let size = window.inner_size();
             let surface_config = wgpu::SurfaceConfiguration {
@@ -396,9 +401,14 @@ impl ApplicationHandler for AppState {
                 present_mode,
                 alpha_mode,
                 view_formats: vec![],
-                desired_maximum_frame_latency: 2,
+                desired_maximum_frame_latency: frame_latency,
             };
             surface.configure(&device, &surface_config);
+            log::info!(
+                "Surface present mode: {:?}, frame latency: {}",
+                present_mode,
+                frame_latency
+            );
 
             // Update engine window
             self.engine_window.width = size.width;
@@ -410,6 +420,8 @@ impl ApplicationHandler for AppState {
             self.device = Some(device);
             self.queue = Some(queue);
             self.surface_config = Some(surface_config);
+            self.present_mode = Some(present_mode);
+            self.frame_latency = frame_latency;
 
             self.initialize();
         }
@@ -598,6 +610,9 @@ impl ApplicationHandler for AppState {
                     render: render_duration,
                     present: present_duration,
                     total: frame_start.elapsed(),
+                    frame_interval: std::time::Duration::from_secs_f32(delta.max(0.0)),
+                    present_mode: self.present_mode,
+                    frame_latency: self.frame_latency,
                 });
 
                 // Update window title with FPS (throttled to ~0.25s to avoid syscall every frame).
@@ -607,10 +622,22 @@ impl ApplicationHandler for AppState {
                     if elapsed >= 0.25 {
                         let fps = (self.title_frame_count as f32 / elapsed) as u32;
                         let gpu_summary = self.renderer.latest_gpu_profile_summary();
+                        let render_summary = self.renderer.latest_cpu_profile_summary();
                         let title = if self.profiler.is_enabled()
                             && !self.profiler.latest_summary().is_empty()
                         {
-                            if let Some(gpu_summary) = gpu_summary {
+                            if let (Some(render_summary), Some(gpu_summary)) =
+                                (render_summary.as_ref(), gpu_summary.as_ref())
+                            {
+                                format!(
+                                    "{} | FPS: {} | {} | {} | {}",
+                                    self.config.title,
+                                    fps,
+                                    self.profiler.latest_summary(),
+                                    render_summary,
+                                    gpu_summary
+                                )
+                            } else if let Some(gpu_summary) = gpu_summary {
                                 format!(
                                     "{} | FPS: {} | {} | {}",
                                     self.config.title,

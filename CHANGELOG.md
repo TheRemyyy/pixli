@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Profiler** — Built-in CPU frame profiler controlled by `PIXLI_PROFILE=1` with timings for physics, systems, surface acquire, render, present, and total frame time.
 - **GPU profiling** — Vulkan timestamp queries report GPU frame time when the adapter supports timestamp queries.
 - **Stress scene** — `pixli-stress` binary renders a dense lighting/post-processing scene for repeatable performance checks.
+- **Renderer pass profiling** — CPU and GPU profilers now report depth, shadow, main, bloom, SSAO, post, submit, visible, and culled render stats.
 
 ### Changed
 
@@ -33,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Renderer CPU overhead** — Bloom render target views and lit entity collection now reuse cached allocations instead of recreating per frame.
 - **Lit batching** — Main lit pass now uses per-instance vertex data and batches consecutive entities sharing a mesh, reducing draw-call and bind-group overhead without changing shading quality.
 - **Depth/shadow batching** — SSAO depth prepass and shadow map rendering now use matrix instance buffers and mesh batching instead of per-entity dynamic uniforms.
+- **Frame pacing** — Surface setup reports present mode and frame latency, defaults Vulkan throughput to latency 2, and allows `PIXLI_FRAME_LATENCY=1..3` overrides.
+- **Visibility and sorting** — Lit and unlit render lists now use sphere-frustum culling and mesh-id sorting before batching.
 
 ## [0.1.0] — Initial release
 

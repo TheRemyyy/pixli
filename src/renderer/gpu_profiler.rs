@@ -2,8 +2,38 @@
 
 use std::sync::{Arc, Mutex};
 
-const QUERY_COUNT: u32 = 2;
+const PASS_COUNT: usize = 7;
+const QUERY_COUNT: u32 = (PASS_COUNT as u32) * 2;
 const QUERY_BUFFER_SIZE: u64 = QUERY_COUNT as u64 * std::mem::size_of::<u64>() as u64;
+
+#[derive(Clone, Copy)]
+pub(super) enum GpuPass {
+    Frame = 0,
+    Depth = 1,
+    Shadow = 2,
+    Main = 3,
+    Bloom = 4,
+    Ssao = 5,
+    Post = 6,
+}
+
+impl GpuPass {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Frame => "gpu",
+            Self::Depth => "depth",
+            Self::Shadow => "shadow",
+            Self::Main => "main",
+            Self::Bloom => "bloom",
+            Self::Ssao => "ssao",
+            Self::Post => "post",
+        }
+    }
+
+    fn query_start(self) -> u32 {
+        self as u32 * 2
+    }
+}
 
 type MapResult = Arc<Mutex<Option<Result<(), wgpu::BufferAsyncError>>>>;
 
@@ -14,7 +44,7 @@ pub(super) struct GpuProfiler {
     readback_buffer: Option<wgpu::Buffer>,
     timestamp_period: f32,
     pending_map: Option<MapResult>,
-    latest_ms: Option<f64>,
+    latest_ms: [Option<f64>; PASS_COUNT],
     frame_active: bool,
     log_enabled: bool,
     samples_since_log: u32,
@@ -34,7 +64,7 @@ impl GpuProfiler {
                 readback_buffer: None,
                 timestamp_period: 0.0,
                 pending_map: None,
-                latest_ms: None,
+                latest_ms: [None; PASS_COUNT],
                 frame_active: false,
                 log_enabled: false,
                 samples_since_log: 0,
@@ -67,7 +97,7 @@ impl GpuProfiler {
             readback_buffer: Some(readback_buffer),
             timestamp_period: queue.get_timestamp_period(),
             pending_map: None,
-            latest_ms: None,
+            latest_ms: [None; PASS_COUNT],
             frame_active: false,
             log_enabled: std::env::var("PIXLI_PROFILE").is_ok(),
             samples_since_log: 0,
@@ -84,7 +114,25 @@ impl GpuProfiler {
     }
 
     pub fn latest_summary(&self) -> Option<String> {
-        self.latest_ms.map(|ms| format!("gpu={ms:.3}ms"))
+        let mut parts = Vec::new();
+        for pass in [
+            GpuPass::Frame,
+            GpuPass::Depth,
+            GpuPass::Shadow,
+            GpuPass::Main,
+            GpuPass::Bloom,
+            GpuPass::Ssao,
+            GpuPass::Post,
+        ] {
+            if let Some(ms) = self.latest_ms[pass as usize] {
+                parts.push(format!("{}={ms:.3}ms", pass.label()));
+            }
+        }
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join(" "))
+        }
     }
 
     pub fn begin_frame(&mut self, encoder: &mut wgpu::CommandEncoder) {
@@ -92,10 +140,8 @@ impl GpuProfiler {
         if self.pending_map.is_some() {
             return;
         }
-        if let Some(query_set) = &self.query_set {
-            encoder.write_timestamp(query_set, 0);
-            self.frame_active = true;
-        }
+        self.write_start(encoder, GpuPass::Frame);
+        self.frame_active = true;
     }
 
     pub fn end_frame(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -107,9 +153,33 @@ impl GpuProfiler {
         else {
             return;
         };
-        encoder.write_timestamp(query_set, 1);
+        encoder.write_timestamp(query_set, GpuPass::Frame.query_start() + 1);
         encoder.resolve_query_set(query_set, 0..QUERY_COUNT, resolve_buffer, 0);
         encoder.copy_buffer_to_buffer(resolve_buffer, 0, readback_buffer, 0, QUERY_BUFFER_SIZE);
+    }
+
+    pub fn begin_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: GpuPass) {
+        if self.frame_active {
+            self.write_start(encoder, pass);
+        }
+    }
+
+    pub fn end_pass(&self, encoder: &mut wgpu::CommandEncoder, pass: GpuPass) {
+        if self.frame_active {
+            self.write_end(encoder, pass);
+        }
+    }
+
+    fn write_start(&self, encoder: &mut wgpu::CommandEncoder, pass: GpuPass) {
+        if let Some(query_set) = &self.query_set {
+            encoder.write_timestamp(query_set, pass.query_start());
+        }
+    }
+
+    fn write_end(&self, encoder: &mut wgpu::CommandEncoder, pass: GpuPass) {
+        if let Some(query_set) = &self.query_set {
+            encoder.write_timestamp(query_set, pass.query_start() + 1);
+        }
     }
 
     pub fn begin_readback(&mut self) {
@@ -150,14 +220,22 @@ impl GpuProfiler {
         if let Some(buffer) = &self.readback_buffer {
             let data = buffer.slice(..).get_mapped_range();
             let timestamps: &[u64] = bytemuck::cast_slice(&data);
-            if timestamps.len() >= 2 && timestamps[1] >= timestamps[0] {
-                let elapsed_ticks = timestamps[1] - timestamps[0];
-                let elapsed_ms =
-                    elapsed_ticks as f64 * f64::from(self.timestamp_period) / 1_000_000.0;
-                self.latest_ms = Some(elapsed_ms);
+            if timestamps.len() >= QUERY_COUNT as usize {
+                for pass_index in 0..PASS_COUNT {
+                    let start_index = pass_index * 2;
+                    let end_index = start_index + 1;
+                    if timestamps[end_index] >= timestamps[start_index] {
+                        let elapsed_ticks = timestamps[end_index] - timestamps[start_index];
+                        self.latest_ms[pass_index] = Some(
+                            elapsed_ticks as f64 * f64::from(self.timestamp_period) / 1_000_000.0,
+                        );
+                    }
+                }
                 self.samples_since_log += 1;
                 if self.log_enabled && self.samples_since_log >= self.log_interval {
-                    log::info!("GPU profiler: render={elapsed_ms:.3}ms");
+                    if let Some(summary) = self.latest_summary() {
+                        log::info!("GPU profiler: {summary}");
+                    }
                     self.samples_since_log = 0;
                 }
             }

@@ -32,6 +32,7 @@ impl Default for Vertex {
 pub struct Mesh {
     id: u64,
     pub vertices: Vec<Vertex>,
+    pub bounding_radius: f32,
 }
 
 impl Mesh {
@@ -40,14 +41,20 @@ impl Mesh {
         Self {
             id: MESH_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             vertices: Vec::new(),
+            bounding_radius: 0.0,
         }
     }
 
     /// Create mesh from vertices.
     pub fn from_vertices(vertices: Vec<Vertex>) -> Self {
+        let bounding_radius = vertices
+            .iter()
+            .map(|vertex| vertex.position.length())
+            .fold(0.0, f32::max);
         Self {
             id: MESH_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             vertices,
+            bounding_radius,
         }
     }
 

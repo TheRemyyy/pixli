@@ -42,9 +42,21 @@ pub fn select_present_mode(
         .unwrap_or(wgpu::PresentMode::Fifo)
 }
 
+/// Select swapchain frame latency. Two queued frames is the throughput default on tested Vulkan
+/// drivers; `PIXLI_FRAME_LATENCY=1` is available for latency-sensitive builds.
+pub fn select_frame_latency(_vsync: bool) -> u32 {
+    std::env::var("PIXLI_FRAME_LATENCY")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .map(|value| value.clamp(1, 3))
+        .unwrap_or(2)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{graphics_backends, is_supported_backend, select_present_mode};
+    use super::{
+        graphics_backends, is_supported_backend, select_frame_latency, select_present_mode,
+    };
 
     #[test]
     fn graphics_backends_are_vulkan_only() {
@@ -75,5 +87,11 @@ mod tests {
         let selected = select_present_mode(false, &supported_modes);
 
         assert_eq!(selected, wgpu::PresentMode::Fifo);
+    }
+
+    #[test]
+    fn select_frame_latency_prefers_throughput_default() {
+        assert_eq!(select_frame_latency(false), 2);
+        assert_eq!(select_frame_latency(true), 2);
     }
 }

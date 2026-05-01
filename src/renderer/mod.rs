@@ -25,13 +25,218 @@ pub use types::{
 };
 
 use constants::*;
-use gpu_profiler::GpuProfiler;
+use gpu_profiler::{GpuPass, GpuProfiler};
 use types::{LitInstance, MatrixInstance, SkyUniform, UnlitSceneUniform};
 
 use crate::ecs::{Entity, World};
 use crate::math::{Color, Mat4, Transform, Vec3};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+#[derive(Debug, Clone, Copy, Default)]
+struct RenderCpuFrame {
+    cull_sort: Duration,
+    depth: Duration,
+    shadow: Duration,
+    main: Duration,
+    bloom: Duration,
+    ssao: Duration,
+    post: Duration,
+    submit: Duration,
+    visible_lit: usize,
+    visible_unlit: usize,
+    culled_lit: usize,
+    culled_unlit: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct DurationAccumulator {
+    total: Duration,
+    max: Duration,
+}
+
+impl DurationAccumulator {
+    fn record(&mut self, duration: Duration) {
+        self.total += duration;
+        self.max = self.max.max(duration);
+    }
+
+    fn average_ms(self, samples: u32) -> f64 {
+        if samples == 0 {
+            return 0.0;
+        }
+        self.total.as_secs_f64() * 1000.0 / f64::from(samples)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct RenderCpuStats {
+    cull_sort: DurationAccumulator,
+    depth: DurationAccumulator,
+    shadow: DurationAccumulator,
+    main: DurationAccumulator,
+    bloom: DurationAccumulator,
+    ssao: DurationAccumulator,
+    post: DurationAccumulator,
+    submit: DurationAccumulator,
+    visible_lit: usize,
+    visible_unlit: usize,
+    culled_lit: usize,
+    culled_unlit: usize,
+}
+
+impl RenderCpuStats {
+    fn record(&mut self, frame: RenderCpuFrame) {
+        self.cull_sort.record(frame.cull_sort);
+        self.depth.record(frame.depth);
+        self.shadow.record(frame.shadow);
+        self.main.record(frame.main);
+        self.bloom.record(frame.bloom);
+        self.ssao.record(frame.ssao);
+        self.post.record(frame.post);
+        self.submit.record(frame.submit);
+        self.visible_lit += frame.visible_lit;
+        self.visible_unlit += frame.visible_unlit;
+        self.culled_lit += frame.culled_lit;
+        self.culled_unlit += frame.culled_unlit;
+    }
+}
+
+struct RenderCpuProfiler {
+    enabled: bool,
+    report_interval_frames: u32,
+    frames_since_report: u32,
+    stats: RenderCpuStats,
+    latest_summary: String,
+}
+
+impl RenderCpuProfiler {
+    fn from_env() -> Self {
+        let enabled = std::env::var("PIXLI_PROFILE").is_ok();
+        let report_interval_frames = std::env::var("PIXLI_PROFILE_INTERVAL")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(120);
+        Self {
+            enabled,
+            report_interval_frames,
+            frames_since_report: 0,
+            stats: RenderCpuStats::default(),
+            latest_summary: String::new(),
+        }
+    }
+
+    fn latest_summary(&self) -> Option<String> {
+        if self.latest_summary.is_empty() {
+            None
+        } else {
+            Some(self.latest_summary.clone())
+        }
+    }
+
+    fn record(&mut self, frame: RenderCpuFrame) {
+        if !self.enabled {
+            return;
+        }
+        self.stats.record(frame);
+        self.frames_since_report += 1;
+        if self.frames_since_report >= self.report_interval_frames {
+            self.latest_summary = format_render_cpu_summary(self.stats, self.frames_since_report);
+            log::info!("Renderer CPU profiler: {}", self.latest_summary);
+            self.frames_since_report = 0;
+            self.stats = RenderCpuStats::default();
+        }
+    }
+}
+
+fn format_render_cpu_summary(stats: RenderCpuStats, samples: u32) -> String {
+    let samples_usize = samples as usize;
+    format!(
+        "cpu-pass avg ms cull={:.3} depth={:.3} shadow={:.3} main={:.3} bloom={:.3} ssao={:.3} post={:.3} submit={:.3}; visible lit={} unlit={} culled lit={} unlit={}",
+        stats.cull_sort.average_ms(samples),
+        stats.depth.average_ms(samples),
+        stats.shadow.average_ms(samples),
+        stats.main.average_ms(samples),
+        stats.bloom.average_ms(samples),
+        stats.ssao.average_ms(samples),
+        stats.post.average_ms(samples),
+        stats.submit.average_ms(samples),
+        stats.visible_lit / samples_usize,
+        stats.visible_unlit / samples_usize,
+        stats.culled_lit / samples_usize,
+        stats.culled_unlit / samples_usize,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct Plane {
+    normal: Vec3,
+    distance: f32,
+}
+
+impl Plane {
+    fn normalize(self) -> Self {
+        let length = self.normal.length();
+        if length <= f32::EPSILON {
+            return self;
+        }
+        Self {
+            normal: self.normal / length,
+            distance: self.distance / length,
+        }
+    }
+
+    fn signed_distance(self, point: Vec3) -> f32 {
+        self.normal.dot(point) + self.distance
+    }
+}
+
+struct Frustum {
+    planes: [Plane; 6],
+}
+
+impl Frustum {
+    fn from_view_projection(matrix: Mat4) -> Self {
+        let row0 = [matrix.x.x, matrix.y.x, matrix.z.x, matrix.w.x];
+        let row1 = [matrix.x.y, matrix.y.y, matrix.z.y, matrix.w.y];
+        let row2 = [matrix.x.z, matrix.y.z, matrix.z.z, matrix.w.z];
+        let row3 = [matrix.x.w, matrix.y.w, matrix.z.w, matrix.w.w];
+        Self {
+            planes: [
+                plane_from_rows(row3, row0, 1.0),
+                plane_from_rows(row3, row0, -1.0),
+                plane_from_rows(row3, row1, 1.0),
+                plane_from_rows(row3, row1, -1.0),
+                plane_from_rows(row3, row2, 1.0),
+                plane_from_rows(row3, row2, -1.0),
+            ],
+        }
+    }
+
+    fn contains_sphere(&self, center: Vec3, radius: f32) -> bool {
+        self.planes
+            .iter()
+            .all(|plane| plane.signed_distance(center) >= -radius)
+    }
+}
+
+fn plane_from_rows(row3: [f32; 4], row: [f32; 4], sign: f32) -> Plane {
+    Plane {
+        normal: Vec3::new(
+            row3[0] + row[0] * sign,
+            row3[1] + row[1] * sign,
+            row3[2] + row[2] * sign,
+        ),
+        distance: row3[3] + row[3] * sign,
+    }
+    .normalize()
+}
+
+fn max_scale_component(scale: Vec3) -> f32 {
+    scale.x.abs().max(scale.y.abs()).max(scale.z.abs())
+}
 
 /// Main renderer.
 pub struct Renderer {
@@ -82,6 +287,7 @@ pub struct Renderer {
     /// Scratch buffer for packing lit uniforms (256 bytes per entity).
     lit_uniform_scratch: Vec<u8>,
     lit_entity_scratch: Vec<Entity>,
+    lit_sort_scratch: Vec<(u64, Entity)>,
     lit_instance_scratch: Vec<LitInstance>,
     matrix_instance_scratch: Vec<MatrixInstance>,
     lit_batch_scratch: Vec<(u64, u32, u32)>,
@@ -130,6 +336,7 @@ pub struct Renderer {
     ssao_params_buffer: Option<wgpu::Buffer>,
     ssao_bind_groups: Option<(wgpu::BindGroup, wgpu::BindGroup, wgpu::BindGroup)>,
     gpu_profiler: Option<GpuProfiler>,
+    cpu_profiler: RenderCpuProfiler,
 }
 
 impl Renderer {
@@ -183,6 +390,7 @@ impl Renderer {
             ),
             lit_uniform_scratch: Vec::with_capacity(MAX_LIT_DRAWS * LIT_UNIFORM_STRIDE as usize),
             lit_entity_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
+            lit_sort_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             lit_instance_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             matrix_instance_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
             lit_batch_scratch: Vec::with_capacity(MAX_LIT_DRAWS),
@@ -226,6 +434,7 @@ impl Renderer {
             ssao_params_buffer: None,
             ssao_bind_groups: None,
             gpu_profiler: None,
+            cpu_profiler: RenderCpuProfiler::from_env(),
         }
     }
 
@@ -246,6 +455,7 @@ impl Renderer {
             GpuMesh {
                 vertex_buffer,
                 vertex_count: mesh.vertices.len() as u32,
+                bounding_radius: mesh.bounding_radius,
             },
         );
         id
@@ -335,6 +545,10 @@ impl Renderer {
         self.gpu_profiler
             .as_ref()
             .and_then(GpuProfiler::latest_summary)
+    }
+
+    pub fn latest_cpu_profile_summary(&self) -> Option<String> {
+        self.cpu_profiler.latest_summary()
     }
 
     /// Resize render targets.
@@ -697,6 +911,7 @@ impl Renderer {
             GpuMesh {
                 vertex_buffer,
                 vertex_count: vertices.len() as u32,
+                bounding_radius: mesh.bounding_radius,
             },
         );
 
@@ -709,30 +924,42 @@ impl Renderer {
         world: &World,
         view_proj: Mat4,
     ) -> (Vec<(u64, u32, u32)>, Vec<Entity>) {
-        let unlit_entities: Vec<_> = world
+        let frustum = Frustum::from_view_projection(view_proj);
+        let mut unlit_entities: Vec<(u64, Entity)> = world
             .query::<(&Transform, &UnlitMeshRef)>()
             .iter()
+            .filter_map(|entity| {
+                let transform = world.get::<Transform>(entity)?;
+                let unlit_ref = world.get::<UnlitMeshRef>(entity)?;
+                let mesh = self.unlit_mesh_cache.get(&unlit_ref.0)?;
+                if !frustum.contains_sphere(
+                    transform.position,
+                    mesh.bounding_radius * max_scale_component(transform.scale),
+                ) {
+                    return None;
+                }
+                Some((unlit_ref.0, entity))
+            })
             .take(MAX_UNLIT_DRAWS)
             .collect();
-        let mut by_mesh: std::collections::HashMap<u64, Vec<Entity>> =
-            std::collections::HashMap::new();
-        for &e in &unlit_entities {
-            let Some(unlit_ref) = world.get::<UnlitMeshRef>(e) else {
-                continue;
-            };
-            by_mesh.entry(unlit_ref.0).or_default().push(e);
-        }
+        unlit_entities.sort_unstable_by_key(|(mesh_id, _)| *mesh_id);
         let mut batches: Vec<(u64, u32, u32)> = Vec::new();
         let mut entity_order: Vec<Entity> = Vec::new();
-        let mut global_idx = 0u32;
-        for (&mesh_id, entities) in &by_mesh {
-            let start = global_idx;
-            let count = entities.len() as u32;
-            if count > 0 && global_idx + count <= MAX_UNLIT_DRAWS as u32 {
-                batches.push((mesh_id, start, count));
-                entity_order.extend(entities.iter().copied());
-                global_idx += count;
+        let mut current_mesh_id = None;
+        for (mesh_id, entity) in unlit_entities {
+            let instance_index = entity_order.len() as u32;
+            match current_mesh_id {
+                Some(active_mesh_id) if active_mesh_id == mesh_id => {
+                    if let Some((_, _, count)) = batches.last_mut() {
+                        *count += 1;
+                    }
+                }
+                _ => {
+                    batches.push((mesh_id, instance_index, 1));
+                    current_mesh_id = Some(mesh_id);
+                }
             }
+            entity_order.push(entity);
         }
         if !entity_order.is_empty() {
             let n = entity_order.len();
@@ -758,18 +985,48 @@ impl Renderer {
 
     /// Render the world (unlit and lit entities in one pass).
     pub fn render(&mut self, world: &World, view: &wgpu::TextureView) {
+        let mut frame_profile = RenderCpuFrame::default();
         let view_matrix = self.camera.view_matrix();
         let proj_matrix = self.camera.projection_matrix();
         let view_proj = proj_matrix * view_matrix;
+        let cull_sort_start = Instant::now();
+        let total_unlit = world.query::<(&Transform, &UnlitMeshRef)>().iter().count();
         let (batches, entity_order) = self.build_unlit_batches(world, view_proj);
         self.lit_entity_scratch.clear();
+        self.lit_sort_scratch.clear();
+        let frustum = Frustum::from_view_projection(view_proj);
+        let total_lit = world.query::<(&Transform, &Mesh)>().iter().count();
+        self.lit_sort_scratch
+            .extend(
+                world
+                    .query::<(&Transform, &Mesh)>()
+                    .iter()
+                    .filter_map(|entity| {
+                        let transform = world.get::<Transform>(entity)?;
+                        let mesh = world.get::<Mesh>(entity)?;
+                        if !frustum.contains_sphere(
+                            transform.position,
+                            mesh.bounding_radius * max_scale_component(transform.scale),
+                        ) {
+                            return None;
+                        }
+                        Some((mesh.id(), entity))
+                    }),
+            );
+        self.lit_sort_scratch
+            .sort_unstable_by_key(|(mesh_id, _)| *mesh_id);
         self.lit_entity_scratch.extend(
-            world
-                .query::<(&Transform, &Mesh)>()
+            self.lit_sort_scratch
                 .iter()
-                .take(MAX_LIT_DRAWS),
+                .take(MAX_LIT_DRAWS)
+                .map(|(_, entity)| *entity),
         );
         let lit_entities = &self.lit_entity_scratch;
+        frame_profile.visible_lit = lit_entities.len();
+        frame_profile.visible_unlit = entity_order.len();
+        frame_profile.culled_lit = total_lit.saturating_sub(lit_entities.len());
+        frame_profile.culled_unlit = total_unlit.saturating_sub(entity_order.len());
+        frame_profile.cull_sort = cull_sort_start.elapsed();
 
         let Some(device) = &self.device else { return };
         let Some(queue) = &self.queue else { return };
@@ -872,6 +1129,10 @@ impl Renderer {
         }
 
         // Depth pre pass for SSAO: 1 sample depth (independent of MSAA).
+        let depth_start = Instant::now();
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.begin_pass(&mut encoder, GpuPass::Depth);
+        }
         if self.graphics.enable_ssao {
             if let (
                 Some(depth_ssao_view),
@@ -904,8 +1165,16 @@ impl Renderer {
                 );
             }
         }
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.end_pass(&mut encoder, GpuPass::Depth);
+        }
+        frame_profile.depth = depth_start.elapsed();
 
         // Shadow pass: render lit geometry from light view into shadow map.
+        let shadow_start = Instant::now();
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.begin_pass(&mut encoder, GpuPass::Shadow);
+        }
         if let (Some(light), Some(sv), Some(slb), Some(sp)) = (
             self.directional_light.as_ref(),
             shadow_map_view,
@@ -929,7 +1198,15 @@ impl Renderer {
                 &self.mesh_cache,
             );
         }
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.end_pass(&mut encoder, GpuPass::Shadow);
+        }
+        frame_profile.shadow = shadow_start.elapsed();
 
+        let main_start = Instant::now();
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.begin_pass(&mut encoder, GpuPass::Main);
+        }
         run_main_pass(
             &mut encoder,
             queue,
@@ -972,8 +1249,16 @@ impl Renderer {
             light_color,
             light_intensity,
         );
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.end_pass(&mut encoder, GpuPass::Main);
+        }
+        frame_profile.main = main_start.elapsed();
 
         // Bloom: extract bright, blur horizontal, blur vertical.
+        let bloom_start = Instant::now();
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.begin_pass(&mut encoder, GpuPass::Bloom);
+        }
         bloom::run_bloom(
             &mut encoder,
             queue,
@@ -988,8 +1273,16 @@ impl Renderer {
             self.bloom_texture_b_view.as_ref(),
             self.post_vertex_buffer.as_ref(),
         );
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.end_pass(&mut encoder, GpuPass::Bloom);
+        }
+        frame_profile.bloom = bloom_start.elapsed();
 
         // SSAO pass and blur.
+        let ssao_start = Instant::now();
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.begin_pass(&mut encoder, GpuPass::Ssao);
+        }
         ssao::run_ssao_pass(
             &mut encoder,
             queue,
@@ -1008,8 +1301,16 @@ impl Renderer {
             self.post_vertex_buffer.as_ref(),
             self.ssao_texture.as_ref(),
         );
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.end_pass(&mut encoder, GpuPass::Ssao);
+        }
+        frame_profile.ssao = ssao_start.elapsed();
 
         // Post pass: scene, bloom, SSAO composite, tone mapping to swapchain.
+        let post_start = Instant::now();
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.begin_pass(&mut encoder, GpuPass::Post);
+        }
         post::run_post_pass(
             &mut encoder,
             view,
@@ -1017,16 +1318,23 @@ impl Renderer {
             post_bind_group,
             post_vertex_buffer,
         );
+        if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
+            gpu_profiler.end_pass(&mut encoder, GpuPass::Post);
+        }
+        frame_profile.post = post_start.elapsed();
 
         if let Some(gpu_profiler) = self.gpu_profiler.as_ref() {
             if gpu_profiler.is_enabled() {
                 gpu_profiler.end_frame(&mut encoder);
             }
         }
+        let submit_start = Instant::now();
         queue.submit(std::iter::once(encoder.finish()));
+        frame_profile.submit = submit_start.elapsed();
         if let Some(gpu_profiler) = self.gpu_profiler.as_mut() {
             gpu_profiler.begin_readback();
         }
+        self.cpu_profiler.record(frame_profile);
     }
 
     /// Set MSAA sample count (1, 2, 4, or 8). After init, changing this recreates pipelines and targets.
