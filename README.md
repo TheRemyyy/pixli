@@ -21,13 +21,13 @@ Pixli is a 3D game engine built in Rust with **wgpu** on a strict Vulkan backend
 
 ### Key Features
 
-- **Rendering** — Vulkan-only lit and unlit pipelines, directional shadows, SSAO, bloom, MSAA, sky gradient, fog
-- **ECS** — Entity/component world, queries, spawn/despawn
-- **Physics** — Box, sphere, and capsule colliders, rigid bodies, collision events, raycasting
-- **Audio** — Sound loading and playback (rodio)
-- **Input** — Keyboard, mouse, cursor capture
-- **Production-ready** — `Result`-based API, no unwraps on user paths, GPU/surface loss handling (Lost, Outdated, Timeout, OutOfMemory)
-- **Profiling** — Built-in CPU and GPU frame profiling for physics, systems, surface acquire, render, present, total frame time, and timestamped GPU render time
+- **Rendering** - Vulkan-only lit and unlit pipelines, directional shadows, SSAO, bloom, MSAA, sky gradient, fog
+- **ECS** - Entity/component world, queries, spawn/despawn
+- **Physics** - Box, sphere, and capsule colliders, rigid bodies, collision events, raycasting
+- **Audio** - Sound loading and playback (rodio)
+- **Input** - Keyboard, mouse, cursor capture
+- **Production-ready** - `Result`-based API, no unwraps on user paths, GPU/surface loss handling (Lost, Outdated, Timeout, OutOfMemory)
+- **Profiling** - Built-in CPU and GPU frame profiling for physics, systems, surface acquire, render, present, total frame time, and timestamped GPU render time
 
 ## <a id="requirements"></a>Requirements
 
